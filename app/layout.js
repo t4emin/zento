@@ -1,5 +1,7 @@
 import "@/styles/css/main.css";
 
+import { I18nProvider } from "@/components/providers/I18nProvider";
+
 export const metadata = {
   title: "Zento",
   description: "QR Ordering SaaS for restaurants",
@@ -7,8 +9,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="th">
+      <body>
+        <I18nProvider>{children}</I18nProvider>
+      </body>
     </html>
   );
 }

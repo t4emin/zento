@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+
 import { apiSuccess, badRequest, forbidden, logApiError, notFound, serverError } from "@/lib/api";
 import { requireStaffSessionResponse } from "@/lib/auth";
 import prisma from "@/lib/prisma";

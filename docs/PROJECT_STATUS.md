@@ -14,6 +14,7 @@ The current codebase is now backend-first. Dashboard and customer ordering flows
 app/
 components/
 docs/
+locales/
 prisma/
 public/
 styles/
@@ -65,8 +66,11 @@ components/
     AppHeader.js
     AppSidebar.js
     DashboardShell.js
+  providers/
+    I18nProvider.js
   dashboard/
     MenuManager.js
+    TablesLauncher.js
   customer/
     CustomerMenu.js
   orders/
@@ -77,7 +81,12 @@ components/
 
 ```text
 lib/
+  i18n.js
   prisma.js
+
+locales/
+  th.js
+  en.js
 
 prisma/
   schema.prisma
@@ -156,20 +165,22 @@ Status:
 
 Purpose:
 - Renders dashboard navigation links.
+- Uses the lightweight dictionary helper for translated labels.
 
 Status:
 - Links exist for Dashboard, Menu, Tables, Orders.
-- No active link state.
-- No restaurant context.
+- Thai/English text now updates dynamically through the shared locale provider.
 
 ### `components/layout/AppHeader.js`
 
 Purpose:
-- Renders a static top bar for the dashboard.
+- Renders the dashboard top bar.
+- Hosts the lightweight TH / EN language switcher.
 
 Status:
-- Pure placeholder.
-- No session data, no demo controls, no page title context.
+- Uses the shared locale provider.
+- Persists the selected locale in `localStorage` under `zento_locale`.
+- Updates translated UI immediately without a full page reload.
 
 ## Existing Styles Structure
 
@@ -192,6 +203,8 @@ The intended project stack is:
 - The root layout now imports `@/styles/css/main.css`.
 - The previous manual `/static/css/main.css` link was removed.
 - Unused starter CSS files from the default Next scaffold were removed.
+- UI copy now lives in `locales/th.js` and `locales/en.js` and is consumed through `lib/i18n.js`.
+- Thai is the default locale, with a lightweight client-side locale provider and persisted language preference.
 
 ## package.json Scripts
 
@@ -232,6 +245,8 @@ Observations:
 - Dashboard pages render inside a shared shell.
 - Homepage links to both staff and customer demo routes.
 - Customer dynamic route resolves URL params and renders basic content.
+- The app has a lightweight bilingual dictionary system with Thai default and English secondary support.
+- Locale preference persists in `localStorage` and updates translated components immediately from the header switcher.
 
 ### Working static UI pieces
 
@@ -251,6 +266,7 @@ Observations:
 - Staff menu, tables, and orders APIs now require an authenticated session and enforce restaurant scoping.
 - API routes now return a consistent JSON success/error shape.
 - Production deployment helpers now exist for env validation and deploy-time Prisma workflows.
+- A lightweight bilingual i18n layer now exists with Thai as the default locale and English as the secondary dictionary.
 
 ### Working project setup pieces
 
@@ -260,6 +276,7 @@ Observations:
 - The root layout imports the compiled global CSS from `@/styles/css/main.css`.
 - Remote Google font fetching has been removed from the root layout, which makes local builds more reliable.
 - Prisma-backed read APIs now exist for menu, tables, orders, and the public customer menu path.
+- UI text for the main dashboard and customer flow is now sourced from locale dictionaries instead of being hardcoded inline.
 
 ## Broken Or Incomplete Features
 
@@ -355,6 +372,7 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 
 - The repository now has domain components for menu, customer ordering, and staff orders.
 - The route files remain relatively thin, which is appropriate for the current MVP.
+- A simple translation helper now sits beside the existing app code instead of introducing a heavy i18n framework.
 
 ### Data architecture
 
@@ -366,6 +384,7 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 - Interactive client state exists in menu management, customer cart behavior, and staff queue updates.
 - Client components are used where browser-only interactions are needed.
 - Client state is now transient UI state only; persistent application data flows through backend APIs.
+- Locale selection is currently static and defaults to Thai through the lightweight i18n helper.
 
 ## Technical Risks
 

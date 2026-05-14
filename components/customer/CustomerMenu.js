@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { getApiErrorMessage } from "@/lib/api-client";
+import { formatText, t } from "@/lib/i18n";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 function formatPrice(price) {
   return `฿${price}`;
@@ -24,6 +26,7 @@ function calculateCartTotal(cartItems) {
 }
 
 export default function CustomerMenu({ restaurantSlug, tableCode }) {
+  const { dict } = useI18n();
   const [restaurantName, setRestaurantName] = useState(restaurantSlug);
   const [menuItems, setMenuItems] = useState([]);
   const [cartItems, setCartItems] = useState([]);
@@ -64,13 +67,13 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
 
         setRestaurantName(payload.restaurant.name);
         setMenuItems(payload.items);
-        setLoadMessage("Loaded menu from the backend.");
+        setLoadMessage(t(dict, "customer.loaded"));
       } catch (error) {
         if (!isMounted) {
           return;
         }
 
-        setErrorMessage(error.message || "Unable to load the menu.");
+        setErrorMessage(error.message || t(dict, "customer.loadFailed"));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -83,7 +86,7 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
     return () => {
       isMounted = false;
     };
-  }, [restaurantSlug, tableCode]);
+  }, [dict, restaurantSlug, tableCode]);
 
   function addItemToCart(item) {
     setSuccessMessage("");
@@ -167,14 +170,16 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
       const payload = await response.json();
 
       if (!response.ok) {
-        setErrorMessage(getApiErrorMessage(payload, "Unable to submit order."));
+        setErrorMessage(getApiErrorMessage(payload, t(dict, "customer.submitFailed")));
         return;
       }
 
       setCartItems([]);
-      setSuccessMessage(`Order submitted for ${payload.table.code}.`);
+      setSuccessMessage(
+        formatText(t(dict, "customer.submitted"), { tableCode: payload.table.code })
+      );
     } catch {
-      setErrorMessage("Unable to submit order.");
+      setErrorMessage(t(dict, "customer.submitFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,19 +188,19 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
   return (
     <main className="z-customer-page">
       <section className="z-customer-hero">
-        <p className="z-home-badge">Customer Menu</p>
+        <p className="z-home-badge">{t(dict, "customer.kicker")}</p>
         <h1>{restaurantName}</h1>
-        <p>Table: {tableCode}</p>
+        <p>{formatText(t(dict, "customer.tableLabel"), { tableCode })}</p>
       </section>
 
       <div className="z-customer-layout">
         <section className="z-customer-menu-panel z-card">
           <div className="z-customer-panel-head">
-            <h2>Available Menu</h2>
-            <p>Order directly from your table in this demo flow.</p>
+            <h2>{t(dict, "customer.menuTitle")}</h2>
+            <p>{t(dict, "customer.menuDescription")}</p>
           </div>
 
-          {isLoading ? <p className="z-customer-notice">Loading menu...</p> : null}
+          {isLoading ? <p className="z-customer-notice">{t(dict, "customer.loading")}</p> : null}
           {!isLoading && loadMessage ? (
             <p className="z-customer-notice">{loadMessage}</p>
           ) : null}
@@ -205,8 +210,8 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
 
           {!isLoading && !errorMessage && categoryEntries.length === 0 ? (
             <div className="z-empty-state">
-              <h3>No available items right now</h3>
-              <p>The demo menu is empty or all items are unavailable.</p>
+              <h3>{t(dict, "customer.noItemsTitle")}</h3>
+              <p>{t(dict, "customer.noItemsDescription")}</p>
             </div>
           ) : !isLoading && !errorMessage ? (
             <div className="z-customer-category-list">
@@ -214,7 +219,9 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
                 <section key={category} className="z-customer-category">
                   <div className="z-customer-category-head">
                     <h3>{category}</h3>
-                    <span>{items.length} items</span>
+                    <span>
+                      {formatText(t(dict, "customer.categoryItems"), { count: items.length })}
+                    </span>
                   </div>
 
                   <div className="z-customer-menu-grid">
@@ -230,7 +237,7 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
                           className="z-btn z-btn-primary"
                           onClick={() => addItemToCart(item)}
                         >
-                          Add to Cart
+                          {t(dict, "customer.addToCart")}
                         </button>
                       </article>
                     ))}
@@ -243,14 +250,14 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
 
         <aside className="z-cart-panel z-card">
           <div className="z-customer-panel-head">
-            <h2>Your Cart</h2>
-            <p>{cartItems.length} selected items</p>
+            <h2>{t(dict, "customer.cartTitle")}</h2>
+            <p>{formatText(t(dict, "customer.cartSelected"), { count: cartItems.length })}</p>
           </div>
 
           {cartItems.length === 0 ? (
             <div className="z-empty-state">
-              <h3>Cart is empty</h3>
-              <p>Add a few items from the menu to place a demo order.</p>
+              <h3>{t(dict, "customer.cartEmptyTitle")}</h3>
+              <p>{t(dict, "customer.cartEmptyDescription")}</p>
             </div>
           ) : (
             <div className="z-cart-list">
@@ -259,7 +266,11 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
                   <div className="z-cart-item-head">
                     <div>
                       <h3>{item.name}</h3>
-                      <p>{formatPrice(item.price)} each</p>
+                      <p>
+                        {formatText(t(dict, "customer.eachPrice"), {
+                          price: formatPrice(item.price),
+                        })}
+                      </p>
                     </div>
                     <strong>{formatPrice(item.price * item.quantity)}</strong>
                   </div>
@@ -288,7 +299,7 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
                       className="z-btn z-btn-secondary"
                       onClick={() => removeItem(item.id)}
                     >
-                      Remove
+                      {t(dict, "customer.remove")}
                     </button>
                   </div>
                 </article>
@@ -298,7 +309,7 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
 
           <div className="z-cart-summary">
             <div className="z-cart-summary-line">
-              <span>Total</span>
+              <span>{t(dict, "common.total")}</span>
               <strong>{formatPrice(total)}</strong>
             </div>
 
@@ -311,7 +322,7 @@ export default function CustomerMenu({ restaurantSlug, tableCode }) {
               disabled={cartItems.length === 0 || isSubmitting}
               onClick={submitOrder}
             >
-              {isSubmitting ? "Submitting..." : "Submit Order"}
+              {isSubmitting ? t(dict, "customer.submitting") : t(dict, "customer.submit")}
             </button>
           </div>
         </aside>

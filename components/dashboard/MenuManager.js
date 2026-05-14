@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { getApiErrorMessage } from "@/lib/api-client";
+import { formatText, t } from "@/lib/i18n";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 const INITIAL_FORM_STATE = {
   name: "",
@@ -28,6 +30,7 @@ function mapMenuItem(item) {
 }
 
 export default function MenuManager() {
+  const { dict } = useI18n();
   const [menuItems, setMenuItems] = useState([]);
   const [formState, setFormState] = useState(INITIAL_FORM_STATE);
   const [editingId, setEditingId] = useState(null);
@@ -59,14 +62,14 @@ export default function MenuManager() {
         }
 
         setMenuItems(apiItems);
-        setLoadMessage("Loaded menu items from the backend API.");
+        setLoadMessage(t(dict, "menu.loaded"));
       } catch (error) {
         if (!isMounted) {
           return;
         }
 
         setMenuItems([]);
-        setLoadMessage(error.message || "Unable to load menu items from the backend API.");
+        setLoadMessage(error.message || t(dict, "menu.loadFailed"));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -79,7 +82,7 @@ export default function MenuManager() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [dict]);
 
   function updateField(fieldName, value) {
     setFormState((currentState) => ({
@@ -106,12 +109,12 @@ export default function MenuManager() {
     };
 
     if (!normalizedItem.name || !normalizedItem.category || !normalizedItem.description) {
-      setStatusMessage("Please fill in all menu item fields.");
+      setStatusMessage(t(dict, "menu.errors.fillAllFields"));
       return;
     }
 
     if (Number.isNaN(normalizedItem.price) || normalizedItem.price <= 0) {
-      setStatusMessage("Please enter a valid price greater than 0.");
+      setStatusMessage(t(dict, "menu.errors.invalidPrice"));
       return;
     }
 
@@ -136,7 +139,7 @@ export default function MenuManager() {
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(getApiErrorMessage(payload, "Unable to save menu item."));
+        setStatusMessage(getApiErrorMessage(payload, t(dict, "menu.errors.saveFailed")));
         return;
       }
 
@@ -147,10 +150,12 @@ export default function MenuManager() {
         : [...menuItems, mapMenuItem(payload.item)];
 
       setMenuItems(nextItems);
-      setStatusMessage(editingId ? "Menu item updated." : "Menu item added.");
+      setStatusMessage(
+        editingId ? t(dict, "menu.statuses.itemUpdated") : t(dict, "menu.statuses.itemAdded")
+      );
       resetForm();
     } catch {
-      setStatusMessage("Unable to save menu item.");
+      setStatusMessage(t(dict, "menu.errors.saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -165,7 +170,9 @@ export default function MenuManager() {
       description: item.description,
       isAvailable: item.isAvailable,
     });
-    setStatusMessage(`Editing ${item.name}.`);
+    setStatusMessage(
+      formatText(t(dict, "menu.statuses.editing"), { name: item.name })
+    );
   }
 
   async function handleDelete(itemId) {
@@ -179,20 +186,20 @@ export default function MenuManager() {
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(getApiErrorMessage(payload, "Unable to delete menu item."));
+        setStatusMessage(getApiErrorMessage(payload, t(dict, "menu.errors.deleteFailed")));
         return;
       }
 
       setMenuItems((currentItems) =>
         currentItems.filter((item) => item.id !== itemId)
       );
-      setStatusMessage("Menu item deleted.");
+      setStatusMessage(t(dict, "menu.statuses.itemDeleted"));
 
       if (editingId === itemId) {
         resetForm();
       }
     } catch {
-      setStatusMessage("Unable to delete menu item.");
+      setStatusMessage(t(dict, "menu.errors.deleteFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -202,19 +209,19 @@ export default function MenuManager() {
     <section className="z-menu-manager">
       <div className="z-menu-manager-header z-card">
         <div>
-          <p className="z-dashboard-kicker">Menu Management</p>
-          <h1>Manage demo menu items</h1>
+          <p className="z-dashboard-kicker">{t(dict, "menu.pageKicker")}</p>
+          <h1>{t(dict, "menu.pageTitle")}</h1>
           <p className="z-dashboard-copy">
-            Add, update, or remove items that will appear in the customer ordering flow.
+            {t(dict, "menu.pageDescription")}
           </p>
         </div>
         <div className="z-menu-summary">
           <strong>{menuItems.length}</strong>
-          <span>items in demo menu</span>
+          <span>{t(dict, "menu.summarySuffix")}</span>
         </div>
       </div>
 
-      {isLoading ? <p className="z-dashboard-notice">Loading menu items...</p> : null}
+      {isLoading ? <p className="z-dashboard-notice">{t(dict, "menu.loading")}</p> : null}
       {!isLoading && loadMessage ? (
         <p className="z-dashboard-notice">{loadMessage}</p>
       ) : null}
@@ -222,50 +229,50 @@ export default function MenuManager() {
       <div className="z-menu-manager-grid">
         <section className="z-menu-form-panel z-card">
           <div className="z-panel-heading">
-            <h2>{editingId ? "Edit Menu Item" : "Add Menu Item"}</h2>
-            <p>Fields: name, price, category, description, availability</p>
+            <h2>{editingId ? t(dict, "menu.formEditTitle") : t(dict, "menu.formAddTitle")}</h2>
+            <p>{t(dict, "menu.formDescription")}</p>
           </div>
 
           <form className="z-menu-form" onSubmit={handleSubmit}>
             <label className="z-field">
-              <span>Name</span>
+              <span>{t(dict, "menu.fields.name")}</span>
               <input
                 type="text"
                 value={formState.name}
                 onChange={(event) => updateField("name", event.target.value)}
-                placeholder="Pad Thai"
+                placeholder={t(dict, "menu.placeholders.name")}
               />
             </label>
 
             <label className="z-field">
-              <span>Price</span>
+              <span>{t(dict, "menu.fields.price")}</span>
               <input
                 type="number"
                 min="1"
                 step="1"
                 value={formState.price}
                 onChange={(event) => updateField("price", event.target.value)}
-                placeholder="120"
+                placeholder={t(dict, "menu.placeholders.price")}
               />
             </label>
 
             <label className="z-field">
-              <span>Category</span>
+              <span>{t(dict, "menu.fields.category")}</span>
               <input
                 type="text"
                 value={formState.category}
                 onChange={(event) => updateField("category", event.target.value)}
-                placeholder="Mains"
+                placeholder={t(dict, "menu.placeholders.category")}
               />
             </label>
 
             <label className="z-field">
-              <span>Description</span>
+              <span>{t(dict, "menu.fields.description")}</span>
               <textarea
                 rows="4"
                 value={formState.description}
                 onChange={(event) => updateField("description", event.target.value)}
-                placeholder="Rice noodles with tamarind sauce and peanuts."
+                placeholder={t(dict, "menu.placeholders.description")}
               />
             </label>
 
@@ -275,14 +282,18 @@ export default function MenuManager() {
                 checked={formState.isAvailable}
                 onChange={(event) => updateField("isAvailable", event.target.checked)}
               />
-              <span>Available for ordering</span>
+              <span>{t(dict, "menu.fields.available")}</span>
             </label>
 
             {statusMessage ? <p className="z-form-message">{statusMessage}</p> : null}
 
             <div className="z-form-actions">
               <button type="submit" className="z-btn z-btn-primary">
-                {isSaving ? "Saving..." : editingId ? "Save Changes" : "Add Item"}
+                {isSaving
+                  ? t(dict, "menu.statuses.saving")
+                  : editingId
+                    ? t(dict, "common.save")
+                    : t(dict, "menu.formAddTitle")}
               </button>
               <button
                 type="button"
@@ -290,7 +301,7 @@ export default function MenuManager() {
                 onClick={resetForm}
                 disabled={isSaving}
               >
-                Clear
+                {t(dict, "common.clear")}
               </button>
             </div>
           </form>
@@ -298,14 +309,14 @@ export default function MenuManager() {
 
         <section className="z-menu-list-panel z-card">
           <div className="z-panel-heading">
-            <h2>Current Items</h2>
-            <p>Items are loaded from PostgreSQL through the backend API.</p>
+            <h2>{t(dict, "menu.listTitle")}</h2>
+            <p>{t(dict, "menu.listDescription")}</p>
           </div>
 
           {menuItems.length === 0 ? (
             <div className="z-empty-state">
-              <h3>No menu items yet</h3>
-              <p>Add your first item using the form on this page.</p>
+              <h3>{t(dict, "menu.emptyTitle")}</h3>
+              <p>{t(dict, "menu.emptyDescription")}</p>
             </div>
           ) : (
             <div className="z-menu-list">
@@ -320,7 +331,9 @@ export default function MenuManager() {
                             item.isAvailable ? "z-status-on" : "z-status-off"
                           }`}
                         >
-                          {item.isAvailable ? "Available" : "Unavailable"}
+                          {item.isAvailable
+                            ? t(dict, "common.available")
+                            : t(dict, "common.unavailable")}
                         </span>
                       </div>
                       <p className="z-menu-item-category">{item.category}</p>
@@ -337,7 +350,7 @@ export default function MenuManager() {
                       onClick={() => handleEdit(item)}
                       disabled={isSaving}
                     >
-                      Edit
+                      {t(dict, "common.edit")}
                     </button>
                     <button
                       type="button"
@@ -345,7 +358,7 @@ export default function MenuManager() {
                       onClick={() => handleDelete(item.id)}
                       disabled={isSaving}
                     >
-                      Delete
+                      {t(dict, "common.delete")}
                     </button>
                   </div>
                 </article>

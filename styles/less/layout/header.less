@@ -10,9 +10,28 @@
 }
 
 .z-header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   padding: 0.45rem 0.8rem;
   border-radius: 999px;
   background: var(--z-surface-muted);
   color: var(--z-text-soft);
   font-size: 0.95rem;
+}
+
+.z-header-locale-switcher {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.z-header-locale-switcher .z-btn {
+  min-width: 3rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.z-header-locale-active {
+  border-color: var(--z-accent);
+  background: var(--z-accent);
+  color: var(--z-surface);
 }

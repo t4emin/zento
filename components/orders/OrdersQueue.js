@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getApiErrorMessage } from "@/lib/api-client";
+import { formatText, t } from "@/lib/i18n";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 const ORDER_STATUSES = ["new", "preparing", "served", "cancelled"];
-const DEMO_RESTAURANT_NAME = "Zento Demo Restaurant";
 
 function formatPrice(price) {
   return `฿${price}`;
@@ -46,6 +47,7 @@ function mapBackendOrder(order, restaurantSlug) {
 }
 
 export default function OrdersQueue() {
+  const { dict } = useI18n();
   const [orders, setOrders] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -78,14 +80,14 @@ export default function OrdersQueue() {
         }
 
         setOrders(sortOrdersNewestFirst(apiOrders));
-        setLoadMessage("Loaded orders from the backend API.");
+        setLoadMessage(t(dict, "orders.loaded"));
       } catch (error) {
         if (!isMounted) {
           return;
         }
 
         setOrders([]);
-        setLoadMessage(error.message || "Unable to load orders from the backend API.");
+        setLoadMessage(error.message || t(dict, "orders.loadFailed"));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -98,7 +100,7 @@ export default function OrdersQueue() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [dict]);
 
   async function handleStatusChange(orderId, nextStatus) {
     setStatusMessage("");
@@ -115,7 +117,7 @@ export default function OrdersQueue() {
       const payload = await response.json();
 
       if (!response.ok) {
-        setStatusMessage(getApiErrorMessage(payload, "Unable to update order status."));
+        setStatusMessage(getApiErrorMessage(payload, t(dict, "orders.updateFailed")));
         return;
       }
 
@@ -126,9 +128,14 @@ export default function OrdersQueue() {
       );
 
       setOrders(nextOrders);
-      setStatusMessage(`Order ${orderId} updated to ${nextStatus}.`);
+      setStatusMessage(
+        formatText(t(dict, "orders.updated"), {
+          orderId,
+          status: t(dict, `orders.statuses.${nextStatus}`, nextStatus),
+        })
+      );
     } catch {
-      setStatusMessage("Unable to update order status.");
+      setStatusMessage(t(dict, "orders.updateFailed"));
     } finally {
       setUpdatingOrderId(null);
     }
@@ -137,28 +144,28 @@ export default function OrdersQueue() {
   return (
     <section className="z-dashboard-home">
       <div className="z-dashboard-home-hero z-card">
-        <p className="z-dashboard-kicker">Orders</p>
-        <h1>Staff Orders Queue</h1>
+        <p className="z-dashboard-kicker">{t(dict, "orders.kicker")}</p>
+        <h1>{t(dict, "orders.title")}</h1>
         <p className="z-dashboard-copy">
-          Review submitted customer orders, track their status, and verify the end-to-end
-          demo flow for {DEMO_RESTAURANT_NAME}.
+          {formatText(t(dict, "orders.description"), {
+            restaurantName: t(dict, "common.demoRestaurantName"),
+          })}
         </p>
       </div>
 
-      {isLoading ? <p className="z-dashboard-notice">Loading orders...</p> : null}
+      {isLoading ? <p className="z-dashboard-notice">{t(dict, "orders.loading")}</p> : null}
       {!isLoading && loadMessage ? (
         <p className="z-dashboard-notice">{loadMessage}</p>
       ) : null}
 
       {!isLoading && orders.length === 0 ? (
         <div className="z-orders-empty z-card">
-          <h2>No orders yet</h2>
+          <h2>{t(dict, "orders.emptyTitle")}</h2>
           <p>
-            Submit an order from a demo customer table first, then come back here to
-            review it.
+            {t(dict, "orders.emptyDescription")}
           </p>
           <Link href="/dashboard/tables" className="z-btn z-btn-primary">
-            Open Demo Tables
+            {t(dict, "orders.openTables")}
           </Link>
         </div>
       ) : !isLoading ? (
@@ -189,7 +196,7 @@ export default function OrdersQueue() {
                   <div key={`${order.id}-${item.id}`} className="z-order-item-row">
                     <div>
                       <strong>{item.name}</strong>
-                      <p>Qty {item.quantity}</p>
+                      <p>{formatText(t(dict, "orders.qty"), { quantity: item.quantity })}</p>
                     </div>
                     <span>{formatPrice(item.lineTotal)}</span>
                   </div>
@@ -198,12 +205,12 @@ export default function OrdersQueue() {
 
               <div className="z-order-footer">
                 <div className="z-order-total-line">
-                  <span>Total</span>
+                  <span>{t(dict, "common.total")}</span>
                   <strong>{formatPrice(order.total)}</strong>
                 </div>
 
                 <label className="z-order-status-control">
-                  <span>Status</span>
+                  <span>{t(dict, "orders.statusLabel")}</span>
                   <select
                     value={order.status}
                     disabled={updatingOrderId === order.id}
@@ -213,7 +220,7 @@ export default function OrdersQueue() {
                   >
                     {ORDER_STATUSES.map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {t(dict, `orders.statuses.${status}`, status)}
                       </option>
                     ))}
                   </select>

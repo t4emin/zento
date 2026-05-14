@@ -1,34 +1,40 @@
+"use client";
+
 import Link from "next/link";
 
+import { t } from "@/lib/i18n";
+import { useI18n } from "@/components/providers/I18nProvider";
+
 export default function DashboardPage() {
+  const { dict } = useI18n();
+
   return (
     <section className="z-dashboard-home">
       <div className="z-dashboard-home-hero z-card">
-        <p className="z-dashboard-kicker">Admin Dashboard</p>
-        <h1>Zento Demo Control Center</h1>
+        <p className="z-dashboard-kicker">{t(dict, "dashboard.title")}</p>
+        <h1>{t(dict, "dashboard.heroTitle")}</h1>
         <p className="z-dashboard-copy">
-          Use this dashboard to manage the demo menu, open table links, and review
-          incoming orders once the next MVP slices are connected.
+          {t(dict, "dashboard.heroDescription")}
         </p>
       </div>
 
       <div className="z-dashboard-card-grid">
         <Link href="/dashboard/menu" className="z-dashboard-link-card z-card">
-          <p className="z-dashboard-card-label">Menu Management</p>
-          <h2>Manage menu items</h2>
-          <p>Create, update, and remove menu items for the customer demo flow.</p>
+          <p className="z-dashboard-card-label">{t(dict, "dashboard.menuLabel")}</p>
+          <h2>{t(dict, "dashboard.menuTitle")}</h2>
+          <p>{t(dict, "dashboard.menuDescription")}</p>
         </Link>
 
         <Link href="/dashboard/tables" className="z-dashboard-link-card z-card">
-          <p className="z-dashboard-card-label">Tables</p>
-          <h2>Open demo tables</h2>
-          <p>Review table links such as `/r/demo/table/T01` for testing.</p>
+          <p className="z-dashboard-card-label">{t(dict, "dashboard.tablesLabel")}</p>
+          <h2>{t(dict, "dashboard.tablesTitle")}</h2>
+          <p>{t(dict, "dashboard.tablesDescription")}</p>
         </Link>
 
         <Link href="/dashboard/orders" className="z-dashboard-link-card z-card">
-          <p className="z-dashboard-card-label">Orders</p>
-          <h2>Check submitted orders</h2>
-          <p>Monitor the demo order queue as customer ordering is added.</p>
+          <p className="z-dashboard-card-label">{t(dict, "dashboard.ordersLabel")}</p>
+          <h2>{t(dict, "dashboard.ordersTitle")}</h2>
+          <p>{t(dict, "dashboard.ordersDescription")}</p>
         </Link>
       </div>
     </section>

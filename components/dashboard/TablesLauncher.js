@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getApiErrorMessage } from "@/lib/api-client";
+import { formatText, t } from "@/lib/i18n";
+import { useI18n } from "@/components/providers/I18nProvider";
 
 export default function TablesLauncher() {
+  const { dict } = useI18n();
   const [restaurant, setRestaurant] = useState(null);
   const [tables, setTables] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,7 +37,7 @@ export default function TablesLauncher() {
 
         setRestaurant(payload.restaurant);
         setTables(payload.tables);
-        setLoadMessage("Loaded demo tables from the backend API.");
+        setLoadMessage(t(dict, "tables.loaded"));
       } catch (error) {
         if (!isMounted) {
           return;
@@ -42,7 +45,7 @@ export default function TablesLauncher() {
 
         setRestaurant(null);
         setTables([]);
-        setLoadMessage(error.message || "Unable to load demo tables from the backend API.");
+        setLoadMessage(error.message || t(dict, "tables.loadFailed"));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -55,19 +58,19 @@ export default function TablesLauncher() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [dict]);
 
   return (
     <section className="z-dashboard-home">
       <div className="z-dashboard-home-hero z-card">
-        <p className="z-dashboard-kicker">Tables</p>
-        <h1>Open demo customer tables</h1>
+        <p className="z-dashboard-kicker">{t(dict, "tables.kicker")}</p>
+        <h1>{t(dict, "tables.title")}</h1>
         <p className="z-dashboard-copy">
-          Use these links to test the customer ordering flow quickly from the admin side.
+          {t(dict, "tables.description")}
         </p>
       </div>
 
-      {isLoading ? <p className="z-dashboard-notice">Loading demo tables...</p> : null}
+      {isLoading ? <p className="z-dashboard-notice">{t(dict, "tables.loading")}</p> : null}
       {!isLoading && loadMessage ? (
         <p className="z-dashboard-notice">{loadMessage}</p>
       ) : null}
@@ -79,9 +82,13 @@ export default function TablesLauncher() {
             href={`/r/${restaurant?.slug || "demo"}/table/${table.code}`}
             className="z-dashboard-link-card z-card"
           >
-            <p className="z-dashboard-card-label">Demo Table</p>
+            <p className="z-dashboard-card-label">{t(dict, "tables.cardLabel")}</p>
             <h2>{table.code}</h2>
-            <p>Open the customer menu for {restaurant?.name || "Zento Demo Restaurant"}.</p>
+            <p>
+              {formatText(t(dict, "tables.openDescription"), {
+                restaurantName: restaurant?.name || t(dict, "common.demoRestaurantName"),
+              })}
+            </p>
           </Link>
         ))}
       </div>
