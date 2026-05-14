@@ -1,0 +1,5 @@
+
+Demo seed user
+Ensure prisma seed creates:
+email: demo@zento.dev
+password: demo1234

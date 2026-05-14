@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  owner
+  manager
+  staff
+}
+
+enum OrderStatus {
+  new
+  preparing
+  served
+  cancelled
+}
+
+enum OrderSource {
+  qr
+  staff
+}
+
+model Restaurant {
+  id        String              @id @default(cuid())
+  slug      String              @unique
+  name      String
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+  users     User[]
+  tables    Table[]
+  menuItems MenuItem[]
+  orders    Order[]
+  settings  RestaurantSettings?
+
+  @@map("restaurants")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  restaurantId String     @map("restaurant_id")
+  email        String     @unique
+  name         String
+  role         UserRole
+  passwordHash String?    @map("password_hash")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("users")
+}
+
+model Table {
+  id           String     @id @default(cuid())
+  restaurantId String     @map("restaurant_id")
+  code         String
+  label        String
+  isActive     Boolean    @default(true) @map("is_active")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@unique([restaurantId, code])
+  @@map("tables")
+}
+
+model MenuItem {
+  id           String      @id
+  restaurantId String      @map("restaurant_id")
+  name         String
+  description  String
+  price        Int
+  category     String
+  isAvailable  Boolean     @default(true) @map("is_available")
+  sortOrder    Int?        @map("sort_order")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems   OrderItem[]
+
+  @@map("menu_items")
+}
+
+model Order {
+  id           String       @id
+  restaurantId String       @map("restaurant_id")
+  tableId      String       @map("table_id")
+  status       OrderStatus
+  totalAmount  Int          @map("total_amount")
+  source       OrderSource  @default(qr)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        Table        @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  orderItems   OrderItem[]
+
+  @@index([restaurantId, createdAt])
+  @@index([tableId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String    @id @default(cuid())
+  orderId           String    @map("order_id")
+  menuItemId        String?   @map("menu_item_id")
+  itemNameSnapshot  String    @map("item_name_snapshot")
+  unitPriceSnapshot Int       @map("unit_price_snapshot")
+  quantity          Int
+  lineTotal         Int       @map("line_total")
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem          MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@map("order_items")
+}
+
+model RestaurantSettings {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique @map("restaurant_id")
+  currency     String     @default("THB")
+  timezone     String     @default("Asia/Bangkok")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_settings")
+}

@@ -1,0 +1,40 @@
+html,
+body {
+  background:
+    radial-gradient(circle at top left, rgba(191, 91, 43, 0.12), transparent 32%),
+    linear-gradient(180deg, #fbf7f1 0%, var(--z-bg) 100%);
+  color: var(--z-text);
+  font-family: var(--z-font-sans);
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  border: 0;
+  background: none;
+}
+
+main {
+  width: 100%;
+}
+
+.z-page-wrap {
+  width: min(calc(100% - 2rem), var(--z-content-width));
+  margin: 0 auto;
+}
+
+.z-section-card {
+  background: var(--z-surface);
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-md);
+  box-shadow: var(--z-shadow);
+}

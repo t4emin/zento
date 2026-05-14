@@ -1,0 +1,36 @@
+.z-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0.75rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.z-btn:hover {
+  transform: translateY(-1px);
+}
+
+.z-btn-primary {
+  background: var(--z-primary);
+  color: #fff7f1;
+}
+
+.z-btn-primary:hover {
+  background: var(--z-primary-hover);
+}
+
+.z-btn-secondary {
+  background: transparent;
+  border-color: var(--z-border);
+  color: var(--z-text);
+}
+
+.z-btn-secondary:hover {
+  background: var(--z-surface-muted);
+}

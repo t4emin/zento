@@ -1,0 +1,61 @@
+.z-home {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.z-home-hero {
+  width: min(100%, 760px);
+  padding: 2rem;
+  background: rgba(255, 253, 248, 0.88);
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-lg);
+  box-shadow: var(--z-shadow);
+}
+
+.z-home-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(38, 92, 75, 0.1);
+  color: var(--z-secondary);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.z-home h1 {
+  margin-top: 1rem;
+  font-size: clamp(2.6rem, 8vw, 4.5rem);
+  line-height: 0.95;
+}
+
+.z-home-lead {
+  margin-top: 1rem;
+  max-width: 50ch;
+  color: var(--z-text-soft);
+  font-size: 1.05rem;
+}
+
+.z-home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 700px) {
+  .z-home {
+    padding: 2rem;
+  }
+
+  .z-home-hero {
+    padding: 2.5rem;
+  }
+
+  .z-home-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

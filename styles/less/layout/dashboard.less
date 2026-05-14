@@ -1,0 +1,22 @@
+.z-dashboard {
+  min-height: 100vh;
+}
+
+.z-dashboard-main {
+  min-width: 0;
+}
+
+.z-dashboard-content {
+  padding: 1rem;
+}
+
+@media (min-width: 900px) {
+  .z-dashboard {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .z-dashboard-content {
+    padding: 1.5rem;
+  }
+}

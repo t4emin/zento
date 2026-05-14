@@ -1,0 +1,88 @@
+.z-login-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.z-login-form input,
+.z-menu-form input,
+.z-menu-form textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--z-border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--z-text);
+}
+
+.z-login-form input:focus,
+.z-menu-form input:focus,
+.z-menu-form textarea:focus {
+  outline: 2px solid rgba(191, 91, 43, 0.18);
+  border-color: var(--z-primary);
+}
+
+.z-login-form button {
+  width: 100%;
+  min-height: 50px;
+  border-radius: 14px;
+  background: var(--z-secondary);
+  color: #f6f8f3;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.z-login-form button:hover {
+  background: var(--z-secondary-hover);
+}
+
+.z-menu-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.z-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.z-field span,
+.z-checkbox-field span {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.z-menu-form textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.z-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.z-checkbox-field input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--z-secondary);
+}
+
+.z-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.z-form-message {
+  color: var(--z-secondary);
+  font-size: 0.95rem;
+}
+
+@media (min-width: 700px) {
+  .z-form-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

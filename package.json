@@ -1,0 +1,37 @@
+{
+  "name": "zento",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:next dev:less",
+    "dev:next": "next dev",
+    "dev:less": "node scripts/watch-less.js",
+    "build": "lessc styles/less/main.less styles/css/main.css && next build",
+    "postinstall": "prisma generate",
+    "start": "next start",
+    "lint": "eslint app components eslint.config.mjs next.config.mjs",
+    "env:check": "node scripts/validate-env.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:validate": "prisma validate",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.15.0",
+    "bcrypt": "^6.0.0",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "less": "^4.6.4",
+    "npm-run-all": "^4.1.5",
+    "prisma": "^6.15.0"
+  }
+}

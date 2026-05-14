@@ -1,0 +1,30 @@
+.z-login-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.z-login-card {
+  width: min(100%, 420px);
+  padding: 1.5rem;
+  background: rgba(255, 253, 248, 0.94);
+  border: 1px solid var(--z-border);
+  border-radius: var(--z-radius-md);
+  box-shadow: var(--z-shadow);
+}
+
+.z-login-card h1 {
+  font-size: 2rem;
+}
+
+.z-login-card p {
+  margin: 0.5rem 0 1.25rem;
+  color: var(--z-text-soft);
+}
+
+@media (min-width: 700px) {
+  .z-login-card {
+    padding: 2rem;
+  }
+}
