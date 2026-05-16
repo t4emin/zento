@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { apiSuccess, badRequest, forbidden, logApiError, notFound, serverError } from "@/lib/api";
+import { apiSuccess, forbidden, logApiError, notFound, serverError } from "@/lib/api";
 import { requireStaffSessionResponse } from "@/lib/auth";
+import { createCustomerTablePath } from "@/lib/restaurants";
 import prisma from "@/lib/prisma";
 
 export async function GET(request) {
@@ -13,18 +14,15 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const restaurantSlug = searchParams.get("restaurantSlug");
+  const resolvedRestaurantSlug = restaurantSlug || session.restaurant.slug;
 
-  if (!restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (restaurantSlug !== session.restaurant.slug) {
+  if (restaurantSlug && restaurantSlug !== session.restaurant.slug) {
     return forbidden();
   }
 
   try {
     const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: restaurantSlug },
+      where: { slug: resolvedRestaurantSlug },
       select: { id: true, slug: true, name: true },
     });
 
@@ -49,7 +47,10 @@ export async function GET(request) {
 
     return apiSuccess({
       restaurant,
-      tables,
+      tables: tables.map((table) => ({
+        ...table,
+        customerPath: createCustomerTablePath(restaurant.slug, table.code),
+      })),
     });
   } catch (error) {
     logApiError("GET /api/tables failed", error);

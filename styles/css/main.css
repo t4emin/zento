@@ -340,12 +340,30 @@ main {
   border-radius: var(--z-radius-md);
   box-shadow: var(--z-shadow);
 }
+.z-signup-card {
+  width: min(100%, 560px);
+}
 .z-login-card h1 {
   font-size: 2rem;
 }
 .z-login-card p {
   margin: 0.5rem 0 1.25rem;
   color: var(--z-text-soft);
+}
+.z-signup-form {
+  gap: 1rem;
+}
+.z-signup-note,
+.z-auth-switch {
+  font-size: 0.95rem;
+  color: var(--z-text-soft);
+}
+.z-auth-switch {
+  margin-top: 1.25rem;
+}
+.z-auth-switch a {
+  color: var(--z-secondary);
+  font-weight: 700;
 }
 @media (min-width: 700px) {
   .z-login-card {
@@ -596,6 +614,69 @@ main {
   background: rgba(70, 52, 46, 0.12);
   color: #5b4a43;
 }
+.z-table-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.z-table-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.z-table-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.z-table-card-head h2 {
+  margin-top: 0.5rem;
+  font-size: 1.4rem;
+}
+.z-table-label {
+  margin-top: 0.35rem;
+  color: var(--z-text-soft);
+}
+.z-table-qr-frame {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  padding: 1rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(191, 91, 43, 0.08), rgba(38, 92, 75, 0.08)), #fff;
+  border: 1px solid var(--z-border);
+}
+.z-table-qr-image {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  border-radius: 14px;
+  background: #fff;
+}
+.z-table-qr-placeholder {
+  color: var(--z-text-soft);
+  text-align: center;
+}
+.z-table-url-block {
+  display: grid;
+  gap: 0.45rem;
+}
+.z-table-url-block span {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.z-table-url-block code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--z-surface-muted);
+  border: 1px solid var(--z-border);
+  font-size: 0.9rem;
+}
+.z-table-actions {
+  display: grid;
+  gap: 0.75rem;
+}
 @media (min-width: 700px) {
   .z-dashboard-card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -619,6 +700,9 @@ main {
     align-items: flex-start;
     justify-content: space-between;
     flex-direction: row;
+  }
+  .z-table-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .z-order-summary {
     justify-content: flex-end;

@@ -18,6 +18,10 @@ export default function HomePage() {
             เริ่มใช้งาน
           </Link>
 
+          <Link href="/signup" className="z-btn z-btn-secondary">
+            สมัครร้านอาหาร
+          </Link>
+
           <Link href="/r/demo/table/T01" className="z-btn z-btn-secondary">
             ทดลองหน้าลูกค้า
           </Link>

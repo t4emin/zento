@@ -2,7 +2,7 @@
 
 ## Overview
 
-Zento is now a playable MVP for a QR ordering SaaS built with the Next.js App Router. The application supports the intended demo flow across login, dashboard management, table launch, customer ordering, and staff order review.
+Zento is now a playable MVP for a QR ordering SaaS built with the Next.js App Router. The application supports the intended flow across restaurant signup, login, dashboard management, table launch, customer ordering, and staff order review.
 
 The current codebase is now backend-first. Dashboard and customer ordering flows read and write through backend APIs, staff access is protected by backend email/password authentication with a secure cookie session, and legacy localStorage fallback behavior has been removed.
 
@@ -34,6 +34,11 @@ app/
   layout.js
   page.js
   api/
+    auth/
+      login/route.js
+      logout/route.js
+      session/route.js
+      signup/route.js
     menu/route.js
     tables/route.js
     orders/route.js
@@ -41,6 +46,8 @@ app/
       restaurants/[slug]/tables/[code]/menu/route.js
       restaurants/[slug]/tables/[code]/orders/route.js
   login/
+    page.js
+  signup/
     page.js
   dashboard/
     layout.js
@@ -62,6 +69,8 @@ app/
 
 ```text
 components/
+  auth/
+    LoginForm.js
   layout/
     AppHeader.js
     AppSidebar.js
@@ -82,7 +91,9 @@ components/
 ```text
 lib/
   i18n.js
+  public-url.js
   prisma.js
+  restaurants.js
 
 locales/
   th.js
@@ -140,12 +151,13 @@ Notes:
 
 | Route | File | Current status |
 | --- | --- | --- |
-| `/` | `app/page.js` | Landing page with links to login and customer demo |
+| `/` | `app/page.js` | Landing page with links to login, signup, and customer demo |
 | `/login` | `app/login/page.js` | Real staff login backed by PostgreSQL users and a secure cookie session |
+| `/signup` | `app/signup/page.js` | Public restaurant onboarding flow that creates the restaurant, owner account, and starter tables |
 | `/dashboard` | `app/dashboard/page.js` | Functional dashboard home with admin entry cards |
 | `/dashboard/menu` | `app/dashboard/menu/page.js` | Functional menu management screen |
 | `/dashboard/orders` | `app/dashboard/orders/page.js` | Functional staff orders queue |
-| `/dashboard/tables` | `app/dashboard/tables/page.js` | Functional demo tables launcher |
+| `/dashboard/tables` | `app/dashboard/tables/page.js` | Functional restaurant tables screen with customer URLs and downloadable QR codes |
 | `/r/[restaurantSlug]/table/[tableCode]` | `app/r/[restaurantSlug]/table/[tableCode]/page.js` | Functional customer ordering flow |
 
 ## Existing Components
@@ -251,17 +263,19 @@ Observations:
 ### Working static UI pieces
 
 - Login page authenticates against PostgreSQL and redirects into the dashboard.
+- Signup page creates a restaurant, owner account, restaurant settings, and initial tables through the backend API.
 - Dashboard sidebar and header render.
 - Basic route navigation can be exercised because route files exist.
 - Dashboard home now shows useful admin entry cards for Menu Management, Tables, and Orders.
 - Dashboard menu now reads and writes through backend APIs only.
-- Dashboard tables now reads through backend APIs only.
+- Dashboard tables now reads through backend APIs only and renders customer ordering URLs plus QR download actions.
 - Customer ordering now loads available menu data from the backend public API, keeps cart state locally in the component, and submits new orders to PostgreSQL.
 - Dashboard orders now reads backend order data only.
 - Dashboard orders status updates now use the backend API only, including server-side transition validation.
 - Prisma schema, seed script, and singleton client helper are now in place for Phase 2 backend work.
 - Public backend APIs now exist for customer menu reads and customer order creation.
 - Real staff auth APIs now exist for login, logout, and session checks.
+- A public auth signup API now exists for owner onboarding.
 - Dashboard routes now require an authenticated staff session.
 - Staff menu, tables, and orders APIs now require an authenticated session and enforce restaurant scoping.
 - API routes now return a consistent JSON success/error shape.
@@ -280,6 +294,17 @@ Observations:
 
 ## Broken Or Incomplete Features
 
+### Restaurant signup is functional
+
+Current status:
+- `/signup` posts restaurant onboarding data to `POST /api/auth/signup`.
+- The signup API validates slug format, owner email uniqueness, password length, and table count range.
+- Successful signup creates the restaurant, owner user, starter tables (`T01`, `T02`, ...), and default restaurant settings in one Prisma transaction.
+- Signup redirects to `/login` instead of auto-creating a staff session.
+
+Remaining gap:
+- There is no email verification, invite flow, or abuse/rate-limit protection yet.
+
 ### Staff login is functional
 
 Current status:
@@ -287,6 +312,18 @@ Current status:
 - Valid staff credentials create a secure HTTP-only session cookie and redirect to `/dashboard`.
 - Staff login is backed by the PostgreSQL `users` table.
 - The seed script now provisions `demo@zento.dev` / `demo1234` as the demo owner account.
+- After signup, `/login` can prefill the owner email from the redirect query string.
+
+### Dashboard tables are functional for self-service onboarding
+
+Current status:
+- `/dashboard/tables` loads the logged-in restaurant's tables from `GET /api/tables`.
+- Each table now shows a customer ordering URL and QR code.
+- Staff can copy the customer URL, open the customer screen, and download the QR code as a PNG.
+- Absolute customer URLs use `NEXT_PUBLIC_APP_URL` or `APP_URL` when available, and fall back to `window.location.origin` on the client.
+
+Remaining gap:
+- There is no print-optimized QR sheet or bulk export yet.
 
 ### Staff orders queue is now functional for the MVP
 
@@ -347,6 +384,7 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 
 - Role-based authorization
 - Better operational states and error recovery
+- Owner/staff management beyond the initial owner account
 
 ### Customer-side flow
 
@@ -392,6 +430,7 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 
 - Public order creation currently depends on API validation only, with no anti-abuse protections.
 - Role-based authorization is not implemented yet beyond a valid staff session.
+- Public signup is not rate-limited and does not yet verify email ownership.
 
 ### Medium risk
 
@@ -409,8 +448,9 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 Current frontend status:
 - Shared dashboard shell exists.
 - Staff dashboard pages are functional.
+- Self-service restaurant onboarding is functional.
 - Customer ordering UI is functional and mobile-first.
-- Menu CRUD, cart behavior, order submission, and order status updates all exist.
+- Menu CRUD, cart behavior, order submission, order status updates, and table QR generation all exist.
 
 Assessment:
 - Frontend MVP is functional.
@@ -423,7 +463,7 @@ Current backend/API status:
 - Staff auth uses PostgreSQL user lookup plus bcrypt password verification.
 - Staff sessions use a signed HTTP-only cookie.
 - Backend read APIs exist for menu, tables, orders, and public customer menu access.
-- Backend write APIs exist for menu CRUD, order status updates, and public customer order creation.
+- Backend write APIs exist for signup, menu CRUD, order status updates, and public customer order creation.
 - Dashboard and customer flows now rely on backend APIs as the only persistent data path.
 - Env validation and deployment-oriented Prisma scripts are now in place.
 
@@ -460,8 +500,9 @@ Zento currently has:
 - a valid customer route shell
 - a working Less-based styling foundation
 - a functional dashboard home entry screen
+- a functional self-service restaurant signup screen
 - a functional menu management MVP screen
-- a functional demo tables screen
+- a functional restaurant tables and QR management screen
 - a functional customer ordering MVP screen
 - a functional staff orders queue MVP screen
 - a PostgreSQL + Prisma backend foundation with active read/write APIs
