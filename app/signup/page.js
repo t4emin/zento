@@ -11,6 +11,7 @@ import { t } from "@/lib/i18n";
 const INITIAL_FORM = {
   restaurantName: "",
   restaurantSlug: "",
+  restaurantType: "normal",
   ownerName: "",
   ownerEmail: "",
   password: "",
@@ -24,14 +25,13 @@ export default function SignupPage() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [errorMessage, setErrorMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const fieldRefs = {
-    restaurantName: useRef(null),
-    restaurantSlug: useRef(null),
-    ownerName: useRef(null),
-    ownerEmail: useRef(null),
-    password: useRef(null),
-    tableCount: useRef(null),
-  };
+  const restaurantNameRef = useRef(null);
+  const restaurantSlugRef = useRef(null);
+  const restaurantTypeNormalRef = useRef(null);
+  const ownerNameRef = useRef(null);
+  const ownerEmailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const tableCountRef = useRef(null);
 
   function updateField(name, value) {
     setForm((currentForm) => ({
@@ -42,6 +42,15 @@ export default function SignupPage() {
 
   function validateForm() {
     const nextFieldErrors = {};
+    const fieldRefs = {
+      restaurantName: restaurantNameRef,
+      restaurantSlug: restaurantSlugRef,
+      restaurantType: restaurantTypeNormalRef,
+      ownerName: ownerNameRef,
+      ownerEmail: ownerEmailRef,
+      password: passwordRef,
+      tableCount: tableCountRef,
+    };
 
     if (!form.restaurantName.trim()) {
       nextFieldErrors.restaurantName = t(dict, "signup.validation.restaurantNameRequired");
@@ -49,6 +58,10 @@ export default function SignupPage() {
 
     if (!form.restaurantSlug.trim()) {
       nextFieldErrors.restaurantSlug = t(dict, "signup.validation.restaurantSlugRequired");
+    }
+
+    if (!["normal", "buffet"].includes(form.restaurantType)) {
+      nextFieldErrors.restaurantType = t(dict, "signup.validation.restaurantTypeRequired");
     }
 
     if (!form.ownerName.trim()) {
@@ -135,7 +148,7 @@ export default function SignupPage() {
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.restaurantName}
+              ref={restaurantNameRef}
               type="text"
               placeholder={t(dict, "signup.placeholders.restaurantName")}
               value={form.restaurantName}
@@ -153,7 +166,7 @@ export default function SignupPage() {
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.restaurantSlug}
+              ref={restaurantSlugRef}
               type="text"
               placeholder={t(dict, "signup.placeholders.restaurantSlug")}
               value={form.restaurantSlug}
@@ -169,11 +182,53 @@ export default function SignupPage() {
 
           <div className="z-field">
             <span>
+              {t(dict, "signup.fields.restaurantType")}
+              <span className="z-field-required"> *</span>
+            </span>
+            <div className="z-radio-list">
+              <label className="z-radio-card">
+                <input
+                  ref={restaurantTypeNormalRef}
+                  type="radio"
+                  name="restaurantType"
+                  value="normal"
+                  checked={form.restaurantType === "normal"}
+                  onChange={(event) => updateField("restaurantType", event.target.value)}
+                />
+                <div>
+                  <strong>{t(dict, "restaurantTypes.normal")}</strong>
+                  <p>{t(dict, "signup.restaurantTypeDescriptions.normal")}</p>
+                </div>
+              </label>
+
+              <label className="z-radio-card">
+                <input
+                  type="radio"
+                  name="restaurantType"
+                  value="buffet"
+                  checked={form.restaurantType === "buffet"}
+                  onChange={(event) => updateField("restaurantType", event.target.value)}
+                />
+                <div>
+                  <strong>{t(dict, "restaurantTypes.buffet")}</strong>
+                  <p>{t(dict, "signup.restaurantTypeDescriptions.buffet")}</p>
+                </div>
+              </label>
+            </div>
+            {fieldErrors.restaurantType ? (
+              <p className="z-field-error-text">{fieldErrors.restaurantType}</p>
+            ) : null}
+          </div>
+
+          <p className="z-signup-note">{t(dict, "signup.restaurantTypeNote")}</p>
+
+          <div className="z-field">
+            <span>
               {t(dict, "signup.fields.ownerName")}
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.ownerName}
+              ref={ownerNameRef}
               type="text"
               placeholder={t(dict, "signup.placeholders.ownerName")}
               value={form.ownerName}
@@ -189,7 +244,7 @@ export default function SignupPage() {
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.ownerEmail}
+              ref={ownerEmailRef}
               type="email"
               placeholder={t(dict, "signup.placeholders.ownerEmail")}
               value={form.ownerEmail}
@@ -209,7 +264,7 @@ export default function SignupPage() {
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.password}
+              ref={passwordRef}
               type="password"
               placeholder={t(dict, "signup.placeholders.password")}
               value={form.password}
@@ -225,7 +280,7 @@ export default function SignupPage() {
               <span className="z-field-required"> *</span>
             </span>
             <input
-              ref={fieldRefs.tableCount}
+              ref={tableCountRef}
               type="number"
               min="1"
               max="100"

@@ -48,10 +48,16 @@ enum RestaurantMode {
   hybrid
 }
 
+enum RestaurantType {
+  normal
+  buffet
+}
+
 model Restaurant {
   id               String              @id @default(cuid())
   slug             String              @unique
   name             String
+  type             RestaurantType      @default(normal)
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
   users            User[]
@@ -96,19 +102,19 @@ model Table {
 }
 
 model MenuItem {
-  id             String            @id
-  restaurantId   String            @map("restaurant_id")
-  name           String
-  description    String
-  price          Int
-  category       String
-  isAvailable    Boolean           @default(true) @map("is_available")
-  sortOrder      Int?              @map("sort_order")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  restaurant     Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orderItems     OrderItem[]
-  optionGroups   MenuOptionGroup[]
+  id           String            @id
+  restaurantId String            @map("restaurant_id")
+  name         String
+  description  String
+  price        Int
+  category     String
+  isAvailable  Boolean           @default(true) @map("is_available")
+  sortOrder    Int?              @map("sort_order")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems   OrderItem[]
+  optionGroups MenuOptionGroup[]
 
   @@map("menu_items")
 }
@@ -174,20 +180,20 @@ model OrderItem {
 }
 
 model MenuOptionGroup {
-  id          String              @id @default(cuid())
-  restaurantId String             @map("restaurant_id")
-  menuItemId  String              @map("menu_item_id")
-  name        String
-  type        MenuOptionGroupType
-  isRequired  Boolean             @default(false) @map("is_required")
-  minSelect   Int                 @default(0) @map("min_select")
-  maxSelect   Int?                @map("max_select")
-  sortOrder   Int                 @default(0) @map("sort_order")
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  restaurant  Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  menuItem    MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  optionItems MenuOptionItem[]
+  id           String              @id @default(cuid())
+  restaurantId String              @map("restaurant_id")
+  menuItemId   String              @map("menu_item_id")
+  name         String
+  type         MenuOptionGroupType
+  isRequired   Boolean             @default(false) @map("is_required")
+  minSelect    Int                 @default(0) @map("min_select")
+  maxSelect    Int?                @map("max_select")
+  sortOrder    Int                 @default(0) @map("sort_order")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  optionItems  MenuOptionItem[]
 
   @@index([restaurantId, menuItemId, sortOrder])
   @@map("menu_option_groups")
@@ -197,7 +203,7 @@ model MenuOptionItem {
   id            String          @id @default(cuid())
   optionGroupId String          @map("option_group_id")
   name          String
-  priceDelta    Decimal         @default(0) @db.Decimal(10, 2) @map("price_delta")
+  priceDelta    Decimal         @default(0) @map("price_delta") @db.Decimal(10, 2)
   isAvailable   Boolean         @default(true) @map("is_available")
   sortOrder     Int             @default(0) @map("sort_order")
   createdAt     DateTime        @default(now()) @map("created_at")
@@ -209,14 +215,15 @@ model MenuOptionItem {
 }
 
 model RestaurantSettings {
-  id           String     @id @default(cuid())
-  restaurantId String     @unique @map("restaurant_id")
-  currency     String     @default("THB")
-  timezone     String     @default("Asia/Bangkok")
-  mode         RestaurantMode @default(normal)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id                    String         @id @default(cuid())
+  restaurantId          String         @unique @map("restaurant_id")
+  currency              String         @default("THB")
+  timezone              String         @default("Asia/Bangkok")
+  mode                  RestaurantMode @default(normal)
+  buffetDurationMinutes Int?           @default(90) @map("buffet_duration_minutes")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  restaurant            Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@map("restaurant_settings")
 }

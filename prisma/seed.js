@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 const restaurantData = {
   slug: "demo",
   name: "Zento Demo Restaurant",
+  type: "normal",
 };
 
 const tableData = [
@@ -82,7 +83,7 @@ async function main() {
   const passwordHash = await bcrypt.hash(demoUserData.password, 10);
   const restaurant = await prisma.restaurant.upsert({
     where: { slug: restaurantData.slug },
-    update: { name: restaurantData.name },
+    update: { name: restaurantData.name, type: restaurantData.type },
     create: restaurantData,
   });
 
@@ -94,6 +95,7 @@ async function main() {
       currency: "THB",
       timezone: "Asia/Bangkok",
       mode: "normal",
+      buffetDurationMinutes: 90,
     },
   });
 

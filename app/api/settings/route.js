@@ -4,7 +4,11 @@ import { apiSuccess, badRequest, logApiError, serverError } from "@/lib/api";
 import { requirePermissionResponse } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
-import { RESTAURANT_MODES } from "@/lib/restaurants";
+import {
+  DEFAULT_BUFFET_DURATION_MINUTES,
+  isValidBuffetDurationMinutes,
+  normalizeBuffetDurationMinutes,
+} from "@/lib/restaurants";
 
 export async function GET() {
   const session = await requirePermissionResponse(PERMISSIONS.TABLES_READ);
@@ -23,7 +27,7 @@ export async function GET() {
         restaurantId: true,
         currency: true,
         timezone: true,
-        mode: true,
+        buffetDurationMinutes: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -54,10 +58,10 @@ export async function PATCH(request) {
     return badRequest("Invalid JSON body");
   }
 
-  const mode = typeof payload.mode === "string" ? payload.mode.trim() : "";
+  const buffetDurationMinutes = normalizeBuffetDurationMinutes(payload.buffetDurationMinutes);
 
-  if (!RESTAURANT_MODES.includes(mode)) {
-    return badRequest("mode must be one of: normal, buffet, hybrid");
+  if (!isValidBuffetDurationMinutes(buffetDurationMinutes)) {
+    return badRequest("buffetDurationMinutes must be between 30 and 240");
   }
 
   try {
@@ -66,20 +70,20 @@ export async function PATCH(request) {
         restaurantId: session.user.restaurantId,
       },
       update: {
-        mode,
+        buffetDurationMinutes,
       },
       create: {
         restaurantId: session.user.restaurantId,
         currency: "THB",
         timezone: "Asia/Bangkok",
-        mode,
+        buffetDurationMinutes: buffetDurationMinutes || DEFAULT_BUFFET_DURATION_MINUTES,
       },
       select: {
         id: true,
         restaurantId: true,
         currency: true,
         timezone: true,
-        mode: true,
+        buffetDurationMinutes: true,
         createdAt: true,
         updatedAt: true,
       },

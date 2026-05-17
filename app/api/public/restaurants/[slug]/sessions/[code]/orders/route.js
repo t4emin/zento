@@ -62,8 +62,12 @@ export async function POST(request, { params }) {
 
     const normalizedSession = await expireOrderSessionIfNeeded(prisma, session);
 
+    if (normalizedSession.status === "expired") {
+      return badRequest("This ordering session has expired.");
+    }
+
     if (normalizedSession.status !== "active") {
-      return badRequest("Order session is not active");
+      return badRequest("This ordering session is closed.");
     }
 
     if (!session.table.isActive) {

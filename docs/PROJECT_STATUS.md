@@ -12,7 +12,9 @@ Menu items now support configurable option groups and option items. Restaurants 
 
 Restaurant-scoped RBAC is now implemented for staff dashboard behavior. Staff APIs use the signed session as the source of truth for `restaurantId`, role permissions are enforced on backend routes, and dashboard navigation only exposes pages the current role can access.
 
-Customer ordering now supports optional order notes, a visible checkout summary, and restaurant mode-aware QR guidance. Orders also track payment status, and staff can open a printable electronic receipt page from the dashboard order queue.
+Customer ordering now supports optional order notes, a visible checkout summary, and restaurant type-aware QR guidance. Orders also track payment status, and staff can open a printable electronic receipt page from the dashboard order queue.
+
+Buffet-style table management now supports a configurable dining duration, session countdown behavior, printable QR sheets, and restaurant-type-specific QR guidance for normal and buffet restaurants.
 
 ## Current Project Structure
 
@@ -77,6 +79,8 @@ app/
       page.js
     tables/
       page.js
+      print/
+        page.js
   r/
     [restaurantSlug]/
       table/
@@ -105,6 +109,7 @@ components/
     MenuManager.js
     ReceiptPrintButton.js
     StaffManager.js
+    TableQrPrintSheet.js
     TablesLauncher.js
   customer/
     CustomerMenu.js
@@ -187,6 +192,7 @@ Notes:
 | `/dashboard/orders/[id]/receipt` | `app/dashboard/orders/[id]/receipt/page.js` | Printable electronic receipt page |
 | `/dashboard/staff` | `app/dashboard/staff/page.js` | Restaurant owner staff and role management screen |
 | `/dashboard/tables` | `app/dashboard/tables/page.js` | Functional restaurant tables screen with permanent table QR plus staff-controlled order sessions |
+| `/dashboard/tables/print` | `app/dashboard/tables/print/page.js` | Printable QR sheet for table or session QR cards |
 | `/r/[restaurantSlug]/table/[tableCode]` | `app/r/[restaurantSlug]/table/[tableCode]/page.js` | Functional customer ordering flow |
 | `/r/[restaurantSlug]/session/[sessionCode]` | `app/r/[restaurantSlug]/session/[sessionCode]/page.js` | Customer ordering flow that requires an active session QR |
 
@@ -252,13 +258,30 @@ Status:
 - Staff can update payment status directly from the dashboard orders queue.
 - Staff can open `/dashboard/orders/[id]/receipt` for a printable HTML receipt that includes restaurant, table/session, items, options, note, payment status, total, and timestamp.
 
-## Restaurant Mode Status
+## Restaurant Type Status
 
-- `restaurant_settings.mode` now supports `normal`, `buffet`, and `hybrid`.
-- The dashboard tables page exposes this setting and explains which QR pattern the restaurant should prefer.
-- `normal` favors permanent table QR.
-- `buffet` favors opening a fresh session QR for each party.
-- `hybrid` supports both patterns.
+- `restaurants.type` is now the primary domain field for table QR behavior.
+- Signup exposes only `normal` and `buffet` restaurant types.
+- `restaurant_settings.buffet_duration_minutes` controls the default dining session lifetime for buffet restaurants and defaults to 90 minutes when not configured.
+- The dashboard tables page now follows the restaurant type automatically instead of asking staff to choose a mode there.
+- `normal` uses permanent table QR as the primary customer flow.
+- `buffet` uses dining session QR as the primary customer flow.
+- Existing `restaurant_settings.mode` remains in the schema for backward compatibility, but it is no longer the main source of truth for dashboard UX.
+
+## Buffet Session Status
+
+- Opening a new session for a table closes any previous active session for that table first.
+- New buffet sessions automatically receive an `expiresAt` timestamp based on the restaurant's buffet duration setting unless an explicit future expiry is provided.
+- Public session menu and order APIs treat expired sessions as unusable and return a clear expiration error.
+- Dashboard tables and customer session views now show remaining time countdowns for active dining sessions.
+- Existing restaurants previously marked as `hybrid` are migrated to `buffet` at the restaurant type level.
+
+## Table QR Print Sheet Status
+
+- `/dashboard/tables/print` now renders a print-friendly QR sheet.
+- Normal restaurants print one permanent table QR per table.
+- Buffet restaurants print one active session QR per table when active sessions exist.
+- The QR payload uses the configured public app URL when available, so printed QR sheets work outside the dashboard browser session.
 
 ## Existing Styles Structure
 
@@ -384,8 +407,9 @@ Observations:
 
 Current status:
 - `/signup` posts restaurant onboarding data to `POST /api/auth/signup`.
-- The signup API validates slug format, owner email uniqueness, password length, and table count range.
-- Successful signup creates the restaurant, owner user, starter tables (`T01`, `T02`, ...), and default restaurant settings in one Prisma transaction.
+- The signup API validates slug format, restaurant type, owner email uniqueness, password length, and table count range.
+- Owners choose `normal` or `buffet` during onboarding.
+- Successful signup creates the restaurant, owner user, starter tables (`T01`, `T02`, ...), the restaurant type, and default restaurant settings in one Prisma transaction.
 - Signup redirects to `/login` instead of auto-creating a staff session.
 
 Remaining gap:
@@ -404,7 +428,9 @@ Current status:
 
 Current status:
 - `/dashboard/tables` loads the logged-in restaurant's tables from `GET /api/tables`.
-- Each table now shows a customer ordering URL and QR code.
+- Each table now follows the logged-in restaurant's `restaurants.type` automatically.
+- Normal restaurants show permanent customer ordering URLs and QR codes prominently.
+- Buffet restaurants show dining session tools and countdown behavior prominently.
 - Staff can copy the customer URL, open the customer screen, and download the QR code as a PNG.
 - Absolute customer URLs use `NEXT_PUBLIC_APP_URL` or `APP_URL` when available, and fall back to `window.location.origin` on the client.
 
@@ -472,6 +498,7 @@ The current playable MVP target is now implemented. Remaining gaps are post-MVP 
 - There is no invitation-by-email workflow yet; owners create staff users directly in the dashboard.
 - Fine-grained custom permissions do not exist yet beyond the built-in `owner`, `manager`, and `staff` role sets.
 - Receipts are printable HTML only; there is no PDF or background receipt generation yet.
+- Bulk QR export is print-sheet based; there is no ZIP bundle or server-side QR asset generation yet.
 
 ### Staff-side flow
 

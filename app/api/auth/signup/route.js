@@ -6,15 +6,19 @@ import prisma from "@/lib/prisma";
 import {
   createInitialTables,
   DEFAULT_RESTAURANT_CURRENCY,
+  DEFAULT_BUFFET_DURATION_MINUTES,
   DEFAULT_RESTAURANT_MODE,
+  DEFAULT_RESTAURANT_TYPE,
   DEFAULT_RESTAURANT_TIMEZONE,
   isValidRestaurantSlug,
   isValidTableCount,
   MIN_PASSWORD_LENGTH,
   normalizeEmail,
+  normalizeRestaurantType,
   normalizeRestaurantSlug,
   OWNER_ROLE,
   parseTableCount,
+  RESTAURANT_TYPES,
 } from "@/lib/restaurants";
 
 function validatePayload(payload) {
@@ -24,6 +28,8 @@ function validatePayload(payload) {
   const ownerEmail = normalizeEmail(payload.ownerEmail);
   const password = String(payload.password || "");
   const tableCount = parseTableCount(payload.tableCount);
+  const rawRestaurantType = String(payload.restaurantType || "").trim().toLowerCase();
+  const restaurantType = normalizeRestaurantType(payload.restaurantType);
 
   if (!restaurantName) {
     return { error: "restaurant name is required" };
@@ -31,6 +37,10 @@ function validatePayload(payload) {
 
   if (!restaurantSlug) {
     return { error: "restaurant slug is required" };
+  }
+
+  if (rawRestaurantType && !RESTAURANT_TYPES.includes(rawRestaurantType)) {
+    return { error: "restaurant type must be normal or buffet" };
   }
 
   if (!isValidRestaurantSlug(restaurantSlug)) {
@@ -65,6 +75,7 @@ function validatePayload(payload) {
       ownerEmail,
       password,
       tableCount,
+      restaurantType,
     },
   };
 }
@@ -84,7 +95,7 @@ export async function POST(request) {
     return badRequest(validation.error);
   }
 
-  const { restaurantName, restaurantSlug, ownerName, ownerEmail, password, tableCount } =
+  const { restaurantName, restaurantSlug, ownerName, ownerEmail, password, tableCount, restaurantType } =
     validation.values;
 
   try {
@@ -115,11 +126,13 @@ export async function POST(request) {
         data: {
           slug: restaurantSlug,
           name: restaurantName,
+          type: restaurantType || DEFAULT_RESTAURANT_TYPE,
         },
         select: {
           id: true,
           slug: true,
           name: true,
+          type: true,
         },
       });
 
@@ -152,7 +165,8 @@ export async function POST(request) {
           restaurantId: restaurant.id,
           currency: DEFAULT_RESTAURANT_CURRENCY,
           timezone: DEFAULT_RESTAURANT_TIMEZONE,
-          mode: DEFAULT_RESTAURANT_MODE,
+          mode: restaurantType === "buffet" ? "buffet" : DEFAULT_RESTAURANT_MODE,
+          buffetDurationMinutes: DEFAULT_BUFFET_DURATION_MINUTES,
         },
       });
 

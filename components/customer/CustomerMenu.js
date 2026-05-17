@@ -149,6 +149,7 @@ export default function CustomerMenu({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const cartPanelRef = useRef(null);
+  const [nowMs, setNowMs] = useState(0);
 
   const isSessionMode = orderingMode === "session";
   const menuEndpoint = isSessionMode
@@ -163,6 +164,45 @@ export default function CustomerMenu({
   const baseItemsTotal = calculateBaseItemsTotal(cartItems);
   const optionTotal = calculateOptionTotal(cartItems);
   const total = calculateCartTotal(cartItems);
+  const remainingMilliseconds =
+    isSessionMode && sessionMeta?.expiresAt && nowMs
+      ? new Date(sessionMeta.expiresAt).getTime() - nowMs
+      : null;
+  const isSessionExpired =
+    isSessionMode &&
+    (sessionMeta?.status === "expired" ||
+      (remainingMilliseconds !== null && remainingMilliseconds <= 0));
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  function formatRemainingTime(milliseconds) {
+    if (milliseconds === null) {
+      return "";
+    }
+
+    if (milliseconds <= 0) {
+      return t(dict, "customer.expiredSession");
+    }
+
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -248,6 +288,11 @@ export default function CustomerMenu({
   }
 
   function handleAddItem(menuItem) {
+    if (isSessionExpired) {
+      setErrorMessage(t(dict, "customer.expiredSession"));
+      return;
+    }
+
     if (!Array.isArray(menuItem.optionGroups) || menuItem.optionGroups.length === 0) {
       addConfiguredItemToCart(menuItem, {
         selectedOptionItemIds: [],
@@ -362,6 +407,12 @@ export default function CustomerMenu({
   }
 
   async function submitOrder() {
+    if (isSessionExpired) {
+      setErrorMessage(t(dict, "customer.expiredSession"));
+      cartPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     if (cartItems.length === 0) {
       setErrorMessage(t(dict, "customer.cartValidation"));
       cartPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -434,8 +485,18 @@ export default function CustomerMenu({
                 })}
               </p>
             ) : null}
+            {remainingMilliseconds !== null ? (
+              <p>
+                {formatText(t(dict, "customer.remainingTime"), {
+                  remainingTime: formatRemainingTime(remainingMilliseconds),
+                })}
+              </p>
+            ) : null}
             {sessionMeta.note ? (
               <p>{formatText(t(dict, "customer.sessionNote"), { note: sessionMeta.note })}</p>
+            ) : null}
+            {isSessionExpired ? (
+              <p className="z-customer-error">{t(dict, "customer.expiredSession")}</p>
             ) : null}
           </div>
         ) : null}
@@ -491,6 +552,7 @@ export default function CustomerMenu({
                             type="button"
                             className="z-btn z-btn-primary"
                             onClick={() => handleAddItem(item)}
+                            disabled={isSessionExpired}
                           >
                             {Array.isArray(item.optionGroups) && item.optionGroups.length > 0
                               ? t(dict, "customer.customizeItem")
@@ -575,6 +637,7 @@ export default function CustomerMenu({
                                   type="button"
                                   className="z-btn z-btn-primary"
                                   onClick={() => handleConfirmOptions(item)}
+                                  disabled={isSessionExpired}
                                 >
                                   {t(dict, "customer.addConfiguredItem")}
                                 </button>
@@ -697,7 +760,7 @@ export default function CustomerMenu({
             <button
               type="button"
               className="z-btn z-btn-primary z-cart-submit"
-              disabled={cartItems.length === 0 || isSubmitting}
+              disabled={cartItems.length === 0 || isSubmitting || isSessionExpired}
               onClick={submitOrder}
             >
               {isSubmitting ? t(dict, "customer.submitting") : t(dict, "customer.submit")}

@@ -23,16 +23,29 @@ export async function GET(request) {
 
   try {
     const restaurant = session.restaurant;
-    const settings = await prisma.restaurantSettings.findUnique({
-      where: {
-        restaurantId: restaurant.id,
-      },
-      select: {
-        mode: true,
-        currency: true,
-        timezone: true,
-      },
-    });
+    let settings = null;
+
+    try {
+      settings = await prisma.restaurantSettings.findUnique({
+        where: {
+          restaurantId: restaurant.id,
+        },
+        select: {
+          buffetDurationMinutes: true,
+          currency: true,
+          timezone: true,
+        },
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("GET /api/tables settings query failed", {
+          restaurantId: restaurant.id,
+          error,
+        });
+      }
+
+      settings = null;
+    }
 
     const tables = await prisma.table.findMany({
       where: {

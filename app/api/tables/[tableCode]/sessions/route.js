@@ -3,8 +3,16 @@ import { NextResponse } from "next/server";
 import { apiSuccess, badRequest, logApiError, notFound, serverError } from "@/lib/api";
 import { requirePermissionResponse } from "@/lib/auth";
 import { PERMISSIONS } from "@/lib/permissions";
-import { createOrderSessionCode, parseOptionalDate, parseOptionalInteger } from "@/lib/order-sessions";
-import { createCustomerSessionPath } from "@/lib/restaurants";
+import {
+  createOrderSessionCode,
+  createSessionExpiryFromDuration,
+  parseOptionalDate,
+  parseOptionalInteger,
+} from "@/lib/order-sessions";
+import {
+  createCustomerSessionPath,
+  DEFAULT_BUFFET_DURATION_MINUTES,
+} from "@/lib/restaurants";
 import prisma from "@/lib/prisma";
 
 function buildSessionResponse(session, restaurantSlug) {
@@ -63,6 +71,26 @@ export async function POST(request, { params }) {
   }
 
   try {
+    let settings = null;
+
+    try {
+      settings = await prisma.restaurantSettings.findUnique({
+        where: {
+          restaurantId: session.restaurant.id,
+        },
+        select: {
+          buffetDurationMinutes: true,
+        },
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("POST /api/tables/[tableCode]/sessions settings query failed", {
+          restaurantId: session.restaurant.id,
+          error,
+        });
+      }
+    }
+
     const table = await prisma.table.findUnique({
       where: {
         restaurantId_code: {
@@ -89,6 +117,10 @@ export async function POST(request, { params }) {
 
     const createdSession = await prisma.$transaction(async (tx) => {
       const now = new Date();
+      const resolvedDurationMinutes =
+        settings?.buffetDurationMinutes || DEFAULT_BUFFET_DURATION_MINUTES;
+      const resolvedExpiresAt =
+        expiresAt || createSessionExpiryFromDuration(resolvedDurationMinutes, now);
 
       await tx.orderSession.updateMany({
         where: {
@@ -112,7 +144,7 @@ export async function POST(request, { params }) {
           customerCount,
           note: note || null,
           startedAt: now,
-          expiresAt,
+          expiresAt: resolvedExpiresAt,
         },
         select: {
           id: true,

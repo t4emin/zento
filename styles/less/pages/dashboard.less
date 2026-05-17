@@ -383,6 +383,25 @@
   padding: 1.25rem;
 }
 
+.z-table-qr-section,
+.z-print-sheet-grid,
+.z-print-sheet-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.z-table-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.z-table-section-head h3 {
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+}
+
 .z-table-card-head {
   display: flex;
   align-items: flex-start;
@@ -445,6 +464,16 @@
   font-size: 0.9rem;
 }
 
+.z-print-sheet-url {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--z-surface-muted);
+  border: 1px solid var(--z-border);
+  font-size: 0.85rem;
+}
+
 .z-table-actions {
   display: grid;
   gap: 0.75rem;
@@ -480,6 +509,14 @@
 
 .z-table-session-qr {
   background: rgba(255, 253, 248, 0.88);
+}
+
+.z-print-sheet-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.z-print-sheet-card {
+  padding: 1.25rem;
 }
 
 .z-table-mode-hint,
@@ -551,6 +588,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .z-table-session-panel .z-table-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .z-order-summary {
     justify-content: flex-end;
   }
@@ -595,5 +636,14 @@
   .z-receipt-card {
     box-shadow: none;
     border: 0;
+  }
+
+  .z-print-sheet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .z-print-sheet-card,
+  .z-table-qr-frame {
+    break-inside: avoid;
   }
 }
