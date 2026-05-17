@@ -24,6 +24,18 @@
   color: var(--z-text-soft);
 }
 
+.z-customer-session-meta {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--z-border);
+}
+
+.z-customer-session-meta p {
+  color: var(--z-text-soft);
+}
+
 .z-customer-layout {
   display: grid;
   gap: 1rem;
@@ -108,6 +120,75 @@
   color: var(--z-text-soft);
 }
 
+.z-customer-option-note,
+.z-cart-item-option-line {
+  color: var(--z-text-soft);
+  font-size: 0.92rem;
+}
+
+.z-customer-option-configurator,
+.z-customer-option-group,
+.z-customer-option-item-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.z-customer-option-configurator {
+  padding-top: 1rem;
+  border-top: 1px solid var(--z-border);
+}
+
+.z-customer-option-configurator-head,
+.z-customer-option-group-head,
+.z-customer-option-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.z-customer-option-group {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--z-border);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.85);
+}
+
+.z-customer-option-group-error {
+  border-color: var(--z-primary);
+  background: rgba(191, 91, 43, 0.05);
+}
+
+.z-customer-option-group-head span,
+.z-customer-option-group-head p {
+  color: var(--z-text-soft);
+  font-size: 0.9rem;
+}
+
+.z-customer-option-item {
+  padding: 0.75rem 0;
+  border-top: 1px solid rgba(226, 214, 197, 0.8);
+}
+
+.z-customer-option-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.z-customer-option-item input {
+  margin-top: 0.2rem;
+}
+
+.z-customer-option-item span {
+  flex: 1;
+}
+
+.z-customer-option-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .z-cart-panel {
   position: sticky;
   bottom: 1rem;
@@ -169,6 +250,16 @@
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--z-border);
+}
+
+.z-cart-summary textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--z-border);
+  border-radius: 14px;
+  resize: vertical;
+  background: #fff;
 }
 
 .z-cart-summary-line {

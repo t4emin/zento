@@ -1,34 +1,13 @@
 import { apiSuccess, badRequest, logApiError, notFound, serverError } from "@/lib/api";
+import {
+  buildValidatedOrderItems,
+  MENU_ITEM_WITH_OPTIONS_SELECT,
+  normalizeSubmittedOrderItems,
+  serializeMenuItem,
+  validateSubmittedOrderItems,
+} from "@/lib/menu-options";
 import prisma from "@/lib/prisma";
-
-function parseInteger(value) {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return Number.NaN;
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!/^-?\d+$/.test(trimmedValue)) {
-    return Number.NaN;
-  }
-
-  return Number.parseInt(trimmedValue, 10);
-}
-
-function normalizeOrderItems(payload) {
-  if (!Array.isArray(payload.items)) {
-    return null;
-  }
-
-  return payload.items.map((item) => ({
-    id: String(item.id || "").trim(),
-    quantity: parseInteger(item.quantity),
-  }));
-}
+import { normalizeOptionalNote } from "@/lib/restaurants";
 
 export async function POST(request, { params }) {
   let payload;
@@ -40,22 +19,12 @@ export async function POST(request, { params }) {
   }
 
   const { slug, code } = await params;
-  const items = normalizeOrderItems(payload);
+  const items = normalizeSubmittedOrderItems(payload);
+  const note = normalizeOptionalNote(payload.note, 500);
+  const orderItemsError = validateSubmittedOrderItems(items);
 
-  if (!items || items.length === 0) {
-    return badRequest("items must be a non-empty array");
-  }
-
-  if (
-    items.some(
-      (item) => !item.id || Number.isNaN(item.quantity) || item.quantity <= 0 || !Number.isInteger(item.quantity)
-    )
-  ) {
-    return badRequest("each order item must include a valid id and integer quantity greater than 0");
-  }
-
-  if (new Set(items.map((item) => item.id)).size !== items.length) {
-    return badRequest("duplicate menu item ids are not allowed in one order payload");
+  if (orderItemsError) {
+    return badRequest(orderItemsError);
   }
 
   try {
@@ -97,45 +66,17 @@ export async function POST(request, { params }) {
         restaurantId: restaurant.id,
         id: { in: requestedIds },
       },
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        isAvailable: true,
-      },
+      select: MENU_ITEM_WITH_OPTIONS_SELECT,
     });
 
-    const menuItemMap = new Map(menuItems.map((item) => [item.id, item]));
-
-    for (const item of items) {
-      const menuItem = menuItemMap.get(item.id);
-
-      if (!menuItem) {
-        return badRequest(`Menu item not found: ${item.id}`);
-      }
-
-      if (!menuItem.isAvailable) {
-        return badRequest(`Menu item is unavailable: ${menuItem.name}`);
-      }
-    }
-
-    const orderItemsData = items.map((item) => {
-      const menuItem = menuItemMap.get(item.id);
-      const lineTotal = menuItem.price * item.quantity;
-
-      return {
-        menuItemId: menuItem.id,
-        itemNameSnapshot: menuItem.name,
-        unitPriceSnapshot: menuItem.price,
-        quantity: item.quantity,
-        lineTotal,
-      };
-    });
-
-    const totalAmount = orderItemsData.reduce(
-      (sum, item) => sum + item.lineTotal,
-      0
+    const validationResult = buildValidatedOrderItems(
+      items,
+      menuItems.map(serializeMenuItem)
     );
+
+    if (validationResult.error) {
+      return badRequest(validationResult.error);
+    }
 
     const createdOrder = await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -143,20 +84,23 @@ export async function POST(request, { params }) {
           id: `order-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           restaurantId: restaurant.id,
           tableId: table.id,
+          note,
+          paymentStatus: "unpaid",
           status: "new",
-          totalAmount,
+          totalAmount: validationResult.totalAmount,
           source: "qr",
         },
       });
 
       await tx.orderItem.createMany({
-        data: orderItemsData.map((item) => ({
+        data: validationResult.items.map((item) => ({
           orderId: order.id,
           menuItemId: item.menuItemId,
           itemNameSnapshot: item.itemNameSnapshot,
           unitPriceSnapshot: item.unitPriceSnapshot,
           quantity: item.quantity,
           lineTotal: item.lineTotal,
+          selectedOptionsSnapshot: item.selectedOptionsSnapshot,
         })),
       });
 
@@ -170,6 +114,12 @@ export async function POST(request, { params }) {
               label: true,
             },
           },
+          orderSession: {
+            select: {
+              id: true,
+              code: true,
+            },
+          },
           orderItems: {
             orderBy: [{ id: "asc" }],
             select: {
@@ -179,6 +129,7 @@ export async function POST(request, { params }) {
               unitPriceSnapshot: true,
               quantity: true,
               lineTotal: true,
+              selectedOptionsSnapshot: true,
             },
           },
         },

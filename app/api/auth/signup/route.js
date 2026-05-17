@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import {
   createInitialTables,
   DEFAULT_RESTAURANT_CURRENCY,
+  DEFAULT_RESTAURANT_MODE,
   DEFAULT_RESTAURANT_TIMEZONE,
   isValidRestaurantSlug,
   isValidTableCount,
@@ -151,6 +152,7 @@ export async function POST(request) {
           restaurantId: restaurant.id,
           currency: DEFAULT_RESTAURANT_CURRENCY,
           timezone: DEFAULT_RESTAURANT_TIMEZONE,
+          mode: DEFAULT_RESTAURANT_MODE,
         },
       });
 

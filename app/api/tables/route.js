@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { apiSuccess, forbidden, logApiError, notFound, serverError } from "@/lib/api";
-import { requireStaffSessionResponse } from "@/lib/auth";
-import { createCustomerTablePath } from "@/lib/restaurants";
+import { apiSuccess, badRequest, logApiError, serverError } from "@/lib/api";
+import { requirePermissionResponse } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
+import { expireOrderSessionIfNeeded } from "@/lib/order-sessions";
+import { createCustomerSessionPath, createCustomerTablePath } from "@/lib/restaurants";
 import prisma from "@/lib/prisma";
 
 export async function GET(request) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.TABLES_READ);
 
   if (session instanceof NextResponse) {
     return session;
@@ -14,21 +16,23 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const restaurantSlug = searchParams.get("restaurantSlug");
-  const resolvedRestaurantSlug = restaurantSlug || session.restaurant.slug;
 
   if (restaurantSlug && restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: resolvedRestaurantSlug },
-      select: { id: true, slug: true, name: true },
+    const restaurant = session.restaurant;
+    const settings = await prisma.restaurantSettings.findUnique({
+      where: {
+        restaurantId: restaurant.id,
+      },
+      select: {
+        mode: true,
+        currency: true,
+        timezone: true,
+      },
     });
-
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
 
     const tables = await prisma.table.findMany({
       where: {
@@ -42,15 +46,58 @@ export async function GET(request) {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        orderSessions: {
+          where: {
+            status: "active",
+          },
+          orderBy: [{ startedAt: "desc" }],
+          take: 1,
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            customerCount: true,
+            note: true,
+            startedAt: true,
+            expiresAt: true,
+            closedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
       },
     });
 
+    const normalizedTables = await Promise.all(
+      tables.map(async (table) => {
+        const [candidateSession] = table.orderSessions;
+        const activeSession = candidateSession
+          ? await expireOrderSessionIfNeeded(prisma, candidateSession)
+          : null;
+
+        return {
+          id: table.id,
+          code: table.code,
+          label: table.label,
+          isActive: table.isActive,
+          createdAt: table.createdAt,
+          updatedAt: table.updatedAt,
+          customerPath: createCustomerTablePath(restaurant.slug, table.code),
+          activeSession:
+            activeSession?.status === "active"
+              ? {
+                  ...activeSession,
+                  customerPath: createCustomerSessionPath(restaurant.slug, activeSession.code),
+                }
+              : null,
+        };
+      })
+    );
+
     return apiSuccess({
       restaurant,
-      tables: tables.map((table) => ({
-        ...table,
-        customerPath: createCustomerTablePath(restaurant.slug, table.code),
-      })),
+      settings,
+      tables: normalizedTables,
     });
   } catch (error) {
     logApiError("GET /api/tables failed", error);

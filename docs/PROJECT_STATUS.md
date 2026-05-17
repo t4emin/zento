@@ -6,6 +6,14 @@ Zento is now a playable MVP for a QR ordering SaaS built with the Next.js App Ro
 
 The current codebase is now backend-first. Dashboard and customer ordering flows read and write through backend APIs, staff access is protected by backend email/password authentication with a secure cookie session, and legacy localStorage fallback behavior has been removed.
 
+The ordering model now supports both permanent table QR and optional per-session QR. This keeps the original table QR flow for normal restaurants while adding staff-controlled session links for buffet-style service.
+
+Menu items now support configurable option groups and option items. Restaurants can keep simple items with no options, or define structured choices such as soup type, noodle type, protein, and toppings with server-side pricing and order-item option snapshots.
+
+Restaurant-scoped RBAC is now implemented for staff dashboard behavior. Staff APIs use the signed session as the source of truth for `restaurantId`, role permissions are enforced on backend routes, and dashboard navigation only exposes pages the current role can access.
+
+Customer ordering now supports optional order notes, a visible checkout summary, and restaurant mode-aware QR guidance. Orders also track payment status, and staff can open a printable electronic receipt page from the dashboard order queue.
+
 ## Current Project Structure
 
 ### Top-level structure
@@ -40,11 +48,17 @@ app/
       session/route.js
       signup/route.js
     menu/route.js
+    settings/route.js
     tables/route.js
+    tables/[tableCode]/sessions/route.js
     orders/route.js
+    orders/[id]/route.js
+    sessions/[code]/route.js
     public/
       restaurants/[slug]/tables/[code]/menu/route.js
       restaurants/[slug]/tables/[code]/orders/route.js
+      restaurants/[slug]/sessions/[code]/menu/route.js
+      restaurants/[slug]/sessions/[code]/orders/route.js
   login/
     page.js
   signup/
@@ -56,12 +70,20 @@ app/
       page.js
     orders/
       page.js
+      [id]/
+        receipt/
+          page.js
+    staff/
+      page.js
     tables/
       page.js
   r/
     [restaurantSlug]/
       table/
         [tableCode]/
+          page.js
+      session/
+        [sessionCode]/
           page.js
 ```
 
@@ -76,9 +98,13 @@ components/
     AppSidebar.js
     DashboardShell.js
   providers/
+    DashboardSessionProvider.js
     I18nProvider.js
   dashboard/
+    ForbiddenState.js
     MenuManager.js
+    ReceiptPrintButton.js
+    StaffManager.js
     TablesLauncher.js
   customer/
     CustomerMenu.js
@@ -91,6 +117,7 @@ components/
 ```text
 lib/
   i18n.js
+  menu-options.js
   public-url.js
   prisma.js
   restaurants.js
@@ -157,8 +184,11 @@ Notes:
 | `/dashboard` | `app/dashboard/page.js` | Functional dashboard home with admin entry cards |
 | `/dashboard/menu` | `app/dashboard/menu/page.js` | Functional menu management screen |
 | `/dashboard/orders` | `app/dashboard/orders/page.js` | Functional staff orders queue |
-| `/dashboard/tables` | `app/dashboard/tables/page.js` | Functional restaurant tables screen with customer URLs and downloadable QR codes |
+| `/dashboard/orders/[id]/receipt` | `app/dashboard/orders/[id]/receipt/page.js` | Printable electronic receipt page |
+| `/dashboard/staff` | `app/dashboard/staff/page.js` | Restaurant owner staff and role management screen |
+| `/dashboard/tables` | `app/dashboard/tables/page.js` | Functional restaurant tables screen with permanent table QR plus staff-controlled order sessions |
 | `/r/[restaurantSlug]/table/[tableCode]` | `app/r/[restaurantSlug]/table/[tableCode]/page.js` | Functional customer ordering flow |
+| `/r/[restaurantSlug]/session/[sessionCode]` | `app/r/[restaurantSlug]/session/[sessionCode]/page.js` | Customer ordering flow that requires an active session QR |
 
 ## Existing Components
 
@@ -180,7 +210,10 @@ Purpose:
 - Uses the lightweight dictionary helper for translated labels.
 
 Status:
-- Links exist for Dashboard, Menu, Tables, Orders.
+- Links are shown or hidden based on the signed-in user's role.
+- Owners can access Staff Management.
+- Managers do not see Staff Management.
+- Staff only see the pages they can access.
 - Thai/English text now updates dynamically through the shared locale provider.
 
 ### `components/layout/AppHeader.js`
@@ -191,8 +224,41 @@ Purpose:
 
 Status:
 - Uses the shared locale provider.
+- Shows signed-in user identity and role.
+- Includes dashboard logout behavior.
 - Persists the selected locale in `localStorage` under `zento_locale`.
 - Updates translated UI immediately without a full page reload.
+
+## RBAC Status
+
+- `owner` can manage menu, tables, orders, sessions, and staff users.
+- `manager` can manage menu, tables, orders, and sessions, but cannot manage staff.
+- `staff` can read orders and update order status, but cannot manage menu, tables, sessions, or staff.
+- Staff APIs now scope reads and writes to the authenticated user's `restaurantId` from the signed cookie session.
+- Public customer routes still use `restaurantSlug` because they are restaurant-facing URLs, not staff dashboard APIs.
+
+## Staff Management Status
+
+- `/dashboard/staff` exists and is visible only to owners.
+- Owners can list users for their restaurant, create staff accounts, change names and roles, reset passwords, and delete users.
+- Staff management APIs validate role values, hash passwords with `bcrypt`, and block owners from deleting themselves.
+- Cross-restaurant access is blocked by restaurant-scoped ownership checks on every staff management mutation.
+
+## Ordering and Payment Status
+
+- Orders now support an optional customer note captured during checkout.
+- Customer checkout shows a cost summary with item total, option total, and grand total.
+- Orders now track `paymentStatus` with `unpaid`, `pending_review`, and `paid`.
+- Staff can update payment status directly from the dashboard orders queue.
+- Staff can open `/dashboard/orders/[id]/receipt` for a printable HTML receipt that includes restaurant, table/session, items, options, note, payment status, total, and timestamp.
+
+## Restaurant Mode Status
+
+- `restaurant_settings.mode` now supports `normal`, `buffet`, and `hybrid`.
+- The dashboard tables page exposes this setting and explains which QR pattern the restaurant should prefer.
+- `normal` favors permanent table QR.
+- `buffet` favors opening a fresh session QR for each party.
+- `hybrid` supports both patterns.
 
 ## Existing Styles Structure
 
@@ -247,6 +313,8 @@ Observations:
 - The build compiles Less before running `next build`.
 - Prisma and PostgreSQL foundation scripts now exist and are actively wired into the UI.
 - Production env examples and env validation tooling now exist.
+- Prisma schema now includes `order_sessions` plus nullable `orders.order_session_id` for session-scoped ordering.
+- Prisma schema now also includes `menu_option_groups`, `menu_option_items`, and `order_items.selected_options_snapshot` for customizable menu items.
 
 ## Current Working Features
 
@@ -257,7 +325,25 @@ Observations:
 - Dashboard pages render inside a shared shell.
 - Homepage links to both staff and customer demo routes.
 - Customer dynamic route resolves URL params and renders basic content.
+- Session dynamic route resolves URL params and renders the same customer ordering UI in session mode.
 - The app has a lightweight bilingual dictionary system with Thai default and English secondary support.
+
+### Working session-based ordering flow
+
+- Staff can open a new active order session per table from `/dashboard/tables`.
+- Opening a new session generates a unique session QR URL and closes any previous active session on that table.
+- Staff can view and close the active session from the same tables dashboard.
+- Session QR routes validate the restaurant, session code, active status, and expiration before loading menu data.
+- Orders submitted through a session QR are stored with `orders.order_session_id`.
+- Permanent table QR routes remain active and unchanged for restaurants that do not use session-based ordering.
+
+### Working menu option flow
+
+- Staff menu APIs now support creating, reading, and replacing option groups and option items per menu item.
+- Public menu APIs return only orderable option data for customers.
+- Customer ordering now supports required single-choice and multiple-choice option groups.
+- Cart lines remain separate when the same menu item is chosen with different option combinations.
+- Order submission validates option ownership and availability server-side and stores `selected_options_snapshot` on each order item.
 - Locale preference persists in `localStorage` and updates translated components immediately from the header switcher.
 
 ### Working static UI pieces
@@ -378,7 +464,14 @@ Current status:
 
 ## Missing MVP Features
 
-The current playable MVP target is now implemented. Remaining gaps are post-MVP concerns rather than blockers for the demo flow.
+The current playable MVP target is now implemented. Remaining gaps are post-MVP concerns rather than blockers for the restaurant-scoped production flow.
+
+## Remaining Limitations
+
+- There is no audit log yet for staff role changes, password resets, or destructive admin actions.
+- There is no invitation-by-email workflow yet; owners create staff users directly in the dashboard.
+- Fine-grained custom permissions do not exist yet beyond the built-in `owner`, `manager`, and `staff` role sets.
+- Receipts are printable HTML only; there is no PDF or background receipt generation yet.
 
 ### Staff-side flow
 

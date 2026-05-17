@@ -1,10 +1,22 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { SUPPORTED_LOCALES, t } from "@/lib/i18n";
+import { useDashboardSession } from "@/components/providers/DashboardSessionProvider";
 import { useI18n } from "@/components/providers/I18nProvider";
 
 export default function AppHeader() {
   const { dict, locale, setLocale } = useI18n();
+  const { session } = useDashboardSession();
+  const router = useRouter();
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <header className="z-header">
@@ -27,7 +39,13 @@ export default function AppHeader() {
             </button>
           ))}
         </div>
-        <span>{t(dict, "dashboard.ownerLabel")}</span>
+        <span>
+          {session?.user?.name || t(dict, "dashboard.ownerLabel")} ·{" "}
+          {t(dict, `roles.${session?.user?.role || "owner"}`)}
+        </span>
+        <button type="button" className="z-btn z-btn-secondary" onClick={handleLogout}>
+          {t(dict, "common.logout")}
+        </button>
       </div>
     </header>
   );

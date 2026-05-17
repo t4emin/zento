@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useDashboardSession } from "@/components/providers/DashboardSessionProvider";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { formatText, t } from "@/lib/i18n";
 import { useI18n } from "@/components/providers/I18nProvider";
@@ -12,10 +13,36 @@ const INITIAL_FORM_STATE = {
   category: "",
   description: "",
   isAvailable: true,
+  optionGroups: [],
 };
 
-function createMenuId(name) {
-  return `item-${name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+function createClientKey(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createEmptyOptionItem() {
+  return {
+    clientKey: createClientKey("option-item"),
+    id: "",
+    name: "",
+    priceDelta: "0",
+    isAvailable: true,
+    sortOrder: "",
+  };
+}
+
+function createEmptyOptionGroup() {
+  return {
+    clientKey: createClientKey("option-group"),
+    id: "",
+    name: "",
+    type: "single",
+    isRequired: false,
+    minSelect: "0",
+    maxSelect: "",
+    sortOrder: "",
+    items: [createEmptyOptionItem()],
+  };
 }
 
 function mapMenuItem(item) {
@@ -26,11 +53,60 @@ function mapMenuItem(item) {
     category: item.category,
     description: item.description,
     isAvailable: item.isAvailable,
+    optionGroups: Array.isArray(item.optionGroups)
+      ? item.optionGroups.map((group) => ({
+          clientKey: createClientKey("option-group"),
+          id: group.id,
+          name: group.name,
+          type: group.type,
+          isRequired: group.isRequired,
+          minSelect: String(group.minSelect ?? 0),
+          maxSelect: group.maxSelect === null || group.maxSelect === undefined ? "" : String(group.maxSelect),
+          sortOrder: group.sortOrder === null || group.sortOrder === undefined ? "" : String(group.sortOrder),
+          items: Array.isArray(group.optionItems)
+            ? group.optionItems.map((optionItem) => ({
+                clientKey: createClientKey("option-item"),
+                id: optionItem.id,
+                name: optionItem.name,
+                priceDelta: String(optionItem.priceDelta ?? 0),
+                isAvailable: optionItem.isAvailable,
+                sortOrder:
+                  optionItem.sortOrder === null || optionItem.sortOrder === undefined
+                    ? ""
+                    : String(optionItem.sortOrder),
+              }))
+            : [],
+        }))
+      : [],
   };
+}
+
+function createPayloadOptionGroups(optionGroups) {
+  return optionGroups.map((group, groupIndex) => ({
+    id: group.id,
+    name: group.name.trim(),
+    type: group.type,
+    isRequired: group.isRequired,
+    minSelect: group.type === "single" ? 0 : group.minSelect,
+    maxSelect: group.type === "single" ? 1 : group.maxSelect,
+    sortOrder: group.sortOrder === "" ? groupIndex : Number(group.sortOrder),
+    items: group.items.map((optionItem, optionItemIndex) => ({
+      id: optionItem.id,
+      name: optionItem.name.trim(),
+      priceDelta: optionItem.priceDelta === "" ? 0 : Number(optionItem.priceDelta),
+      isAvailable: optionItem.isAvailable,
+      sortOrder: optionItem.sortOrder === "" ? optionItemIndex : Number(optionItem.sortOrder),
+    })),
+  }));
+}
+
+function formatPrice(price) {
+  return `฿${price}`;
 }
 
 export default function MenuManager() {
   const { dict } = useI18n();
+  const { session } = useDashboardSession();
   const [menuItems, setMenuItems] = useState([]);
   const [formState, setFormState] = useState(INITIAL_FORM_STATE);
   const [editingId, setEditingId] = useState(null);
@@ -47,7 +123,7 @@ export default function MenuManager() {
       setLoadMessage("");
 
       try {
-        const response = await fetch("/api/menu?restaurantSlug=demo", {
+        const response = await fetch("/api/menu", {
           cache: "no-store",
         });
         const payload = await response.json();
@@ -56,12 +132,11 @@ export default function MenuManager() {
           throw new Error(getApiErrorMessage(payload, "Failed to load menu API"));
         }
 
-        const apiItems = payload.items.map(mapMenuItem);
         if (!isMounted) {
           return;
         }
 
-        setMenuItems(apiItems);
+        setMenuItems(payload.items.map(mapMenuItem));
         setLoadMessage(t(dict, "menu.loaded"));
       } catch (error) {
         if (!isMounted) {
@@ -91,6 +166,98 @@ export default function MenuManager() {
     }));
   }
 
+  function updateOptionGroup(groupClientKey, fieldName, value) {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: currentState.optionGroups.map((group) => {
+        if (group.clientKey !== groupClientKey) {
+          return group;
+        }
+
+        if (fieldName === "type" && value === "single") {
+          return {
+            ...group,
+            type: value,
+            minSelect: "0",
+            maxSelect: "1",
+          };
+        }
+
+        return {
+          ...group,
+          [fieldName]: value,
+        };
+      }),
+    }));
+  }
+
+  function addOptionGroup() {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: [...currentState.optionGroups, createEmptyOptionGroup()],
+    }));
+  }
+
+  function removeOptionGroup(groupClientKey) {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: currentState.optionGroups.filter((group) => group.clientKey !== groupClientKey),
+    }));
+  }
+
+  function updateOptionItem(groupClientKey, itemClientKey, fieldName, value) {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: currentState.optionGroups.map((group) => {
+        if (group.clientKey !== groupClientKey) {
+          return group;
+        }
+
+        return {
+          ...group,
+          items: group.items.map((item) =>
+            item.clientKey === itemClientKey
+              ? {
+                  ...item,
+                  [fieldName]: value,
+                }
+              : item
+          ),
+        };
+      }),
+    }));
+  }
+
+  function addOptionItem(groupClientKey) {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: currentState.optionGroups.map((group) =>
+        group.clientKey === groupClientKey
+          ? {
+              ...group,
+              items: [...group.items, createEmptyOptionItem()],
+            }
+          : group
+      ),
+    }));
+  }
+
+  function removeOptionItem(groupClientKey, itemClientKey) {
+    setFormState((currentState) => ({
+      ...currentState,
+      optionGroups: currentState.optionGroups.map((group) => {
+        if (group.clientKey !== groupClientKey) {
+          return group;
+        }
+
+        return {
+          ...group,
+          items: group.items.filter((item) => item.clientKey !== itemClientKey),
+        };
+      }),
+    }));
+  }
+
   function resetForm() {
     setFormState(INITIAL_FORM_STATE);
     setEditingId(null);
@@ -100,12 +267,12 @@ export default function MenuManager() {
     event.preventDefault();
 
     const normalizedItem = {
-      id: editingId || createMenuId(formState.name),
       name: formState.name.trim(),
       price: Number(formState.price),
       category: formState.category.trim(),
       description: formState.description.trim(),
       isAvailable: formState.isAvailable,
+      optionGroups: createPayloadOptionGroups(formState.optionGroups),
     };
 
     if (!normalizedItem.name || !normalizedItem.category || !normalizedItem.description) {
@@ -122,19 +289,16 @@ export default function MenuManager() {
     setStatusMessage("");
 
     try {
-      const response = await fetch(
-        editingId ? `/api/menu/${editingId}` : "/api/menu",
-        {
-          method: editingId ? "PATCH" : "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            restaurantSlug: "demo",
-            ...normalizedItem,
-          }),
-        }
-      );
+      const response = await fetch(editingId ? `/api/menu/${editingId}` : "/api/menu", {
+        method: editingId ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...normalizedItem,
+          ...(editingId ? { id: editingId } : {}),
+        }),
+      });
 
       const payload = await response.json();
 
@@ -143,11 +307,10 @@ export default function MenuManager() {
         return;
       }
 
+      const nextItem = mapMenuItem(payload.item);
       const nextItems = editingId
-        ? menuItems.map((item) =>
-            item.id === editingId ? mapMenuItem(payload.item) : item
-          )
-        : [...menuItems, mapMenuItem(payload.item)];
+        ? menuItems.map((item) => (item.id === editingId ? nextItem : item))
+        : [...menuItems, nextItem];
 
       setMenuItems(nextItems);
       setStatusMessage(
@@ -169,10 +332,9 @@ export default function MenuManager() {
       category: item.category,
       description: item.description,
       isAvailable: item.isAvailable,
+      optionGroups: item.optionGroups.length > 0 ? item.optionGroups : [],
     });
-    setStatusMessage(
-      formatText(t(dict, "menu.statuses.editing"), { name: item.name })
-    );
+    setStatusMessage(formatText(t(dict, "menu.statuses.editing"), { name: item.name }));
   }
 
   async function handleDelete(itemId) {
@@ -180,7 +342,7 @@ export default function MenuManager() {
     setIsSaving(true);
 
     try {
-      const response = await fetch(`/api/menu/${itemId}?restaurantSlug=demo`, {
+      const response = await fetch(`/api/menu/${itemId}`, {
         method: "DELETE",
       });
       const payload = await response.json();
@@ -190,9 +352,7 @@ export default function MenuManager() {
         return;
       }
 
-      setMenuItems((currentItems) =>
-        currentItems.filter((item) => item.id !== itemId)
-      );
+      setMenuItems((currentItems) => currentItems.filter((item) => item.id !== itemId));
       setStatusMessage(t(dict, "menu.statuses.itemDeleted"));
 
       if (editingId === itemId) {
@@ -211,9 +371,10 @@ export default function MenuManager() {
         <div>
           <p className="z-dashboard-kicker">{t(dict, "menu.pageKicker")}</p>
           <h1>{t(dict, "menu.pageTitle")}</h1>
-          <p className="z-dashboard-copy">
-            {t(dict, "menu.pageDescription")}
-          </p>
+          <p className="z-dashboard-copy">{t(dict, "menu.pageDescription")}</p>
+          {session?.restaurant?.name ? (
+            <p className="z-dashboard-copy">{session.restaurant.name}</p>
+          ) : null}
         </div>
         <div className="z-menu-summary">
           <strong>{menuItems.length}</strong>
@@ -222,9 +383,7 @@ export default function MenuManager() {
       </div>
 
       {isLoading ? <p className="z-dashboard-notice">{t(dict, "menu.loading")}</p> : null}
-      {!isLoading && loadMessage ? (
-        <p className="z-dashboard-notice">{loadMessage}</p>
-      ) : null}
+      {!isLoading && loadMessage ? <p className="z-dashboard-notice">{loadMessage}</p> : null}
 
       <div className="z-menu-manager-grid">
         <section className="z-menu-form-panel z-card">
@@ -285,6 +444,220 @@ export default function MenuManager() {
               <span>{t(dict, "menu.fields.available")}</span>
             </label>
 
+            <div className="z-menu-option-groups">
+              <div className="z-menu-option-groups-head">
+                <div>
+                  <h3>{t(dict, "menu.optionGroups.title")}</h3>
+                  <p>{t(dict, "menu.optionGroups.description")}</p>
+                </div>
+                <button
+                  type="button"
+                  className="z-btn z-btn-secondary"
+                  onClick={addOptionGroup}
+                  disabled={isSaving}
+                >
+                  {t(dict, "menu.optionGroups.addGroup")}
+                </button>
+              </div>
+
+              {formState.optionGroups.length === 0 ? (
+                <div className="z-empty-state">
+                  <h3>{t(dict, "menu.optionGroups.emptyTitle")}</h3>
+                  <p>{t(dict, "menu.optionGroups.emptyDescription")}</p>
+                </div>
+              ) : (
+                <div className="z-menu-option-group-list">
+                  {formState.optionGroups.map((group, groupIndex) => (
+                    <section key={group.clientKey} className="z-menu-option-group-card">
+                      <div className="z-menu-option-group-head">
+                        <div>
+                          <p className="z-dashboard-card-label">
+                            {formatText(t(dict, "menu.optionGroups.groupLabel"), {
+                              number: groupIndex + 1,
+                            })}
+                          </p>
+                          <h3>{group.name || t(dict, "menu.optionGroups.newGroup")}</h3>
+                        </div>
+                        <button
+                          type="button"
+                          className="z-btn z-btn-secondary"
+                          onClick={() => removeOptionGroup(group.clientKey)}
+                          disabled={isSaving}
+                        >
+                          {t(dict, "menu.optionGroups.removeGroup")}
+                        </button>
+                      </div>
+
+                      <div className="z-menu-option-group-fields">
+                        <label className="z-field">
+                          <span>{t(dict, "menu.optionGroups.fields.groupName")}</span>
+                          <input
+                            type="text"
+                            value={group.name}
+                            onChange={(event) =>
+                              updateOptionGroup(group.clientKey, "name", event.target.value)
+                            }
+                            placeholder={t(dict, "menu.optionGroups.placeholders.groupName")}
+                          />
+                        </label>
+
+                        <label className="z-field">
+                          <span>{t(dict, "menu.optionGroups.fields.groupType")}</span>
+                          <select
+                            value={group.type}
+                            onChange={(event) =>
+                              updateOptionGroup(group.clientKey, "type", event.target.value)
+                            }
+                          >
+                            <option value="single">{t(dict, "menu.optionGroups.types.single")}</option>
+                            <option value="multiple">
+                              {t(dict, "menu.optionGroups.types.multiple")}
+                            </option>
+                          </select>
+                        </label>
+
+                        <label className="z-checkbox-field">
+                          <input
+                            type="checkbox"
+                            checked={group.isRequired}
+                            onChange={(event) =>
+                              updateOptionGroup(group.clientKey, "isRequired", event.target.checked)
+                            }
+                          />
+                          <span>{t(dict, "menu.optionGroups.fields.required")}</span>
+                        </label>
+
+                        <label className="z-field">
+                          <span>{t(dict, "menu.optionGroups.fields.minSelect")}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            disabled={group.type === "single"}
+                            value={group.type === "single" ? "0" : group.minSelect}
+                            onChange={(event) =>
+                              updateOptionGroup(group.clientKey, "minSelect", event.target.value)
+                            }
+                            placeholder="0"
+                          />
+                        </label>
+
+                        <label className="z-field">
+                          <span>{t(dict, "menu.optionGroups.fields.maxSelect")}</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            disabled={group.type === "single"}
+                            value={group.type === "single" ? "1" : group.maxSelect}
+                            onChange={(event) =>
+                              updateOptionGroup(group.clientKey, "maxSelect", event.target.value)
+                            }
+                            placeholder={t(dict, "menu.optionGroups.placeholders.maxSelect")}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="z-menu-option-items">
+                        <div className="z-menu-option-items-head">
+                          <h4>{t(dict, "menu.optionGroups.optionItemsTitle")}</h4>
+                          <button
+                            type="button"
+                            className="z-btn z-btn-secondary"
+                            onClick={() => addOptionItem(group.clientKey)}
+                            disabled={isSaving}
+                          >
+                            {t(dict, "menu.optionGroups.addItem")}
+                          </button>
+                        </div>
+
+                        <div className="z-menu-option-item-list">
+                          {group.items.map((optionItem, optionItemIndex) => (
+                            <div key={optionItem.clientKey} className="z-menu-option-item-card">
+                              <div className="z-menu-option-group-head">
+                                <div>
+                                  <p className="z-dashboard-card-label">
+                                    {formatText(t(dict, "menu.optionGroups.itemLabel"), {
+                                      number: optionItemIndex + 1,
+                                    })}
+                                  </p>
+                                  <h4>{optionItem.name || t(dict, "menu.optionGroups.newItem")}</h4>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="z-btn z-btn-secondary"
+                                  onClick={() =>
+                                    removeOptionItem(group.clientKey, optionItem.clientKey)
+                                  }
+                                  disabled={isSaving}
+                                >
+                                  {t(dict, "menu.optionGroups.removeItem")}
+                                </button>
+                              </div>
+
+                              <div className="z-menu-option-group-fields">
+                                <label className="z-field">
+                                  <span>{t(dict, "menu.optionGroups.fields.itemName")}</span>
+                                  <input
+                                    type="text"
+                                    value={optionItem.name}
+                                    onChange={(event) =>
+                                      updateOptionItem(
+                                        group.clientKey,
+                                        optionItem.clientKey,
+                                        "name",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder={t(dict, "menu.optionGroups.placeholders.itemName")}
+                                  />
+                                </label>
+
+                                <label className="z-field">
+                                  <span>{t(dict, "menu.optionGroups.fields.priceDelta")}</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={optionItem.priceDelta}
+                                    onChange={(event) =>
+                                      updateOptionItem(
+                                        group.clientKey,
+                                        optionItem.clientKey,
+                                        "priceDelta",
+                                        event.target.value
+                                      )
+                                    }
+                                    placeholder="0"
+                                  />
+                                </label>
+
+                                <label className="z-checkbox-field">
+                                  <input
+                                    type="checkbox"
+                                    checked={optionItem.isAvailable}
+                                    onChange={(event) =>
+                                      updateOptionItem(
+                                        group.clientKey,
+                                        optionItem.clientKey,
+                                        "isAvailable",
+                                        event.target.checked
+                                      )
+                                    }
+                                  />
+                                  <span>{t(dict, "menu.optionGroups.fields.itemAvailable")}</span>
+                                </label>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {statusMessage ? <p className="z-form-message">{statusMessage}</p> : null}
 
             <div className="z-form-actions">
@@ -326,11 +699,7 @@ export default function MenuManager() {
                     <div>
                       <div className="z-menu-item-topline">
                         <h3>{item.name}</h3>
-                        <span
-                          className={`z-status-pill ${
-                            item.isAvailable ? "z-status-on" : "z-status-off"
-                          }`}
-                        >
+                        <span className={`z-status-pill ${item.isAvailable ? "z-status-on" : "z-status-off"}`}>
                           {item.isAvailable
                             ? t(dict, "common.available")
                             : t(dict, "common.unavailable")}
@@ -338,10 +707,33 @@ export default function MenuManager() {
                       </div>
                       <p className="z-menu-item-category">{item.category}</p>
                     </div>
-                    <strong className="z-menu-item-price">฿{item.price}</strong>
+                    <strong className="z-menu-item-price">{formatPrice(item.price)}</strong>
                   </div>
 
                   <p className="z-menu-item-description">{item.description}</p>
+
+                  {item.optionGroups.length > 0 ? (
+                    <div className="z-menu-item-options-summary">
+                      <p className="z-menu-item-options-count">
+                        {formatText(t(dict, "menu.optionGroups.summary"), {
+                          count: item.optionGroups.length,
+                        })}
+                      </p>
+                      <div className="z-menu-item-options-list">
+                        {item.optionGroups.map((group) => (
+                          <div key={group.clientKey} className="z-menu-item-option-summary">
+                            <strong>{group.name}</strong>
+                            <p>
+                              {group.type === "single"
+                                ? t(dict, "menu.optionGroups.types.single")
+                                : t(dict, "menu.optionGroups.types.multiple")}
+                            </p>
+                            <p>{group.items.map((optionItem) => optionItem.name).join(", ")}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="z-item-actions">
                     <button

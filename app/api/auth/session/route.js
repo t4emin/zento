@@ -1,5 +1,6 @@
 import { apiSuccess, logApiError, serverError } from "@/lib/api";
 import { getStaffSession } from "@/lib/auth";
+import { getRolePermissions } from "@/lib/permissions";
 
 export async function GET() {
   try {
@@ -20,6 +21,8 @@ export async function GET() {
           email: session.user.email,
           name: session.user.name,
           role: session.user.role,
+          restaurantId: session.user.restaurantId,
+          permissions: getRolePermissions(session.user.role),
         },
         restaurant: session.restaurant,
       },

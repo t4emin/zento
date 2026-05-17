@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { useDashboardSession } from "@/components/providers/DashboardSessionProvider";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { formatText, t } from "@/lib/i18n";
 import { useI18n } from "@/components/providers/I18nProvider";
 
 const ORDER_STATUSES = ["new", "preparing", "served", "cancelled"];
+const PAYMENT_STATUSES = ["unpaid", "pending_review", "paid"];
 
 function formatPrice(price) {
   return `฿${price}`;
@@ -28,17 +30,25 @@ function sortOrdersNewestFirst(orders) {
   );
 }
 
-function mapBackendOrder(order, restaurantSlug) {
+function mapBackendOrder(order, restaurant) {
   return {
     id: order.id,
-    restaurantSlug,
+    restaurantName: restaurant?.name || "",
     tableCode: order.table.code,
+    tableLabel: order.table.label || order.table.code,
+    sessionCode: order.orderSession?.code || "",
+    note: order.note || "",
+    paymentStatus: order.paymentStatus || "unpaid",
     items: order.orderItems.map((item) => ({
+      lineId: item.id,
       id: item.menuItemId || item.id,
       name: item.itemNameSnapshot,
       price: item.unitPriceSnapshot,
       quantity: item.quantity,
       lineTotal: item.lineTotal,
+      selectedOptionsSnapshot: Array.isArray(item.selectedOptionsSnapshot)
+        ? item.selectedOptionsSnapshot
+        : [],
     })),
     total: order.totalAmount,
     status: order.status,
@@ -48,6 +58,7 @@ function mapBackendOrder(order, restaurantSlug) {
 
 export default function OrdersQueue() {
   const { dict } = useI18n();
+  const { session } = useDashboardSession();
   const [orders, setOrders] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +73,7 @@ export default function OrdersQueue() {
       setLoadMessage("");
 
       try {
-        const response = await fetch("/api/orders?restaurantSlug=demo", {
+        const response = await fetch("/api/orders", {
           cache: "no-store",
         });
         const payload = await response.json();
@@ -72,7 +83,7 @@ export default function OrdersQueue() {
         }
 
         const apiOrders = payload.orders.map((order) =>
-          mapBackendOrder(order, payload.restaurant.slug)
+          mapBackendOrder(order, payload.restaurant)
         );
 
         if (!isMounted) {
@@ -102,7 +113,7 @@ export default function OrdersQueue() {
     };
   }, [dict]);
 
-  async function handleStatusChange(orderId, nextStatus) {
+  async function updateOrder(orderId, nextPayload) {
     setStatusMessage("");
     setUpdatingOrderId(orderId);
     try {
@@ -111,7 +122,7 @@ export default function OrdersQueue() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify(nextPayload),
       });
 
       const payload = await response.json();
@@ -123,22 +134,41 @@ export default function OrdersQueue() {
 
       const nextOrders = sortOrdersNewestFirst(
         orders.map((order) =>
-          order.id === orderId ? mapBackendOrder(payload.order, order.restaurantSlug) : order
+          order.id === orderId ? mapBackendOrder(payload.order, { name: order.restaurantName }) : order
         )
       );
 
       setOrders(nextOrders);
       setStatusMessage(
-        formatText(t(dict, "orders.updated"), {
-          orderId,
-          status: t(dict, `orders.statuses.${nextStatus}`, nextStatus),
-        })
+        nextPayload.paymentStatus
+          ? formatText(t(dict, "orders.paymentUpdated"), {
+              orderId,
+              paymentStatus: t(
+                dict,
+                `orders.paymentStatuses.${nextPayload.paymentStatus}`,
+                nextPayload.paymentStatus
+              ),
+            })
+          : formatText(t(dict, "orders.updated"), {
+              orderId,
+              status: t(dict, `orders.statuses.${nextPayload.status}`, nextPayload.status),
+            })
       );
     } catch {
-      setStatusMessage(t(dict, "orders.updateFailed"));
+      setStatusMessage(
+        nextPayload.paymentStatus ? t(dict, "orders.paymentUpdateFailed") : t(dict, "orders.updateFailed")
+      );
     } finally {
       setUpdatingOrderId(null);
     }
+  }
+
+  async function handleStatusChange(orderId, nextStatus) {
+    await updateOrder(orderId, { status: nextStatus });
+  }
+
+  async function handlePaymentStatusChange(orderId, nextPaymentStatus) {
+    await updateOrder(orderId, { paymentStatus: nextPaymentStatus });
   }
 
   return (
@@ -148,7 +178,7 @@ export default function OrdersQueue() {
         <h1>{t(dict, "orders.title")}</h1>
         <p className="z-dashboard-copy">
           {formatText(t(dict, "orders.description"), {
-            restaurantName: t(dict, "common.demoRestaurantName"),
+            restaurantName: session?.restaurant?.name || t(dict, "common.demoRestaurantName"),
           })}
         </p>
       </div>
@@ -176,8 +206,9 @@ export default function OrdersQueue() {
             <article key={order.id} className="z-order-card z-card">
               <div className="z-order-card-head">
                 <div>
-                  <p className="z-dashboard-card-label">Table {order.tableCode}</p>
-                  <h2>{order.restaurantSlug}</h2>
+                  <p className="z-dashboard-card-label">{order.tableLabel}</p>
+                  <h2>{order.restaurantName || order.tableCode}</h2>
+                  {order.sessionCode ? <p className="z-order-meta">{t(dict, "orders.session")}: {order.sessionCode}</p> : null}
                   <p className="z-order-meta">{formatCreatedAt(order.createdAt)}</p>
                 </div>
 
@@ -187,16 +218,31 @@ export default function OrdersQueue() {
                   >
                     {order.status}
                   </span>
+                  <span className={`z-status-pill ${`z-payment-${order.paymentStatus}`}`}>
+                    {t(dict, `orders.paymentStatuses.${order.paymentStatus}`, order.paymentStatus)}
+                  </span>
                   <strong>{formatPrice(order.total)}</strong>
                 </div>
               </div>
 
+              {order.note ? (
+                <div className="z-order-note">
+                  <strong>{t(dict, "orders.customerNote")}</strong>
+                  <p>{order.note}</p>
+                </div>
+              ) : null}
+
               <div className="z-order-items">
                 {order.items.map((item) => (
-                  <div key={`${order.id}-${item.id}`} className="z-order-item-row">
+                  <div key={`${order.id}-${item.lineId}`} className="z-order-item-row">
                     <div>
                       <strong>{item.name}</strong>
                       <p>{formatText(t(dict, "orders.qty"), { quantity: item.quantity })}</p>
+                      {item.selectedOptionsSnapshot.map((group) => (
+                        <p key={`${order.id}-${item.id}-${group.groupName}`}>
+                          {group.groupName}: {group.items.map((optionItem) => optionItem.name).join(", ")}
+                        </p>
+                      ))}
                     </div>
                     <span>{formatPrice(item.lineTotal)}</span>
                   </div>
@@ -209,22 +255,48 @@ export default function OrdersQueue() {
                   <strong>{formatPrice(order.total)}</strong>
                 </div>
 
-                <label className="z-order-status-control">
-                  <span>{t(dict, "orders.statusLabel")}</span>
-                  <select
-                    value={order.status}
-                    disabled={updatingOrderId === order.id}
-                    onChange={(event) =>
-                      handleStatusChange(order.id, event.target.value)
-                    }
+                <div className="z-order-controls">
+                  <label className="z-order-status-control">
+                    <span>{t(dict, "orders.statusLabel")}</span>
+                    <select
+                      value={order.status}
+                      disabled={updatingOrderId === order.id}
+                      onChange={(event) =>
+                        handleStatusChange(order.id, event.target.value)
+                      }
+                    >
+                      {ORDER_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {t(dict, `orders.statuses.${status}`, status)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="z-order-status-control">
+                    <span>{t(dict, "orders.paymentStatusLabel")}</span>
+                    <select
+                      value={order.paymentStatus}
+                      disabled={updatingOrderId === order.id}
+                      onChange={(event) =>
+                        handlePaymentStatusChange(order.id, event.target.value)
+                      }
+                    >
+                      {PAYMENT_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {t(dict, `orders.paymentStatuses.${status}`, status)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <Link
+                    href={`/dashboard/orders/${order.id}/receipt`}
+                    className="z-btn z-btn-secondary"
                   >
-                    {ORDER_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {t(dict, `orders.statuses.${status}`, status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    {t(dict, "orders.viewReceipt")}
+                  </Link>
+                </div>
               </div>
             </article>
           ))}

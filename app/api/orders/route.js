@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { apiSuccess, badRequest, forbidden, logApiError, notFound, serverError } from "@/lib/api";
-import { requireStaffSessionResponse } from "@/lib/auth";
+import { apiSuccess, badRequest, logApiError, serverError } from "@/lib/api";
+import { requirePermissionResponse } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
 import prisma from "@/lib/prisma";
 
 export async function GET(request) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.ORDERS_READ);
 
   if (session instanceof NextResponse) {
     return session;
@@ -13,24 +14,12 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const restaurantSlug = searchParams.get("restaurantSlug");
-
-  if (!restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+  if (restaurantSlug && restaurantSlug !== session.restaurant.slug) {
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: restaurantSlug },
-      select: { id: true, slug: true, name: true },
-    });
-
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
+    const restaurant = session.restaurant;
 
     const orders = await prisma.order.findMany({
       where: {
@@ -45,6 +34,13 @@ export async function GET(request) {
             label: true,
           },
         },
+        orderSession: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+          },
+        },
         orderItems: {
           orderBy: [{ id: "asc" }],
           select: {
@@ -54,6 +50,7 @@ export async function GET(request) {
             unitPriceSnapshot: true,
             quantity: true,
             lineTotal: true,
+            selectedOptionsSnapshot: true,
           },
         },
       },

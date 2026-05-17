@@ -3,35 +3,22 @@ import { NextResponse } from "next/server";
 import {
   apiSuccess,
   badRequest,
-  forbidden,
   logApiError,
   notFound,
   serverError,
 } from "@/lib/api";
-import { requireStaffSessionResponse } from "@/lib/auth";
+import { requirePermissionResponse } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
+import {
+  MENU_ITEM_WITH_OPTIONS_SELECT,
+  normalizeOptionGroups,
+  normalizeText,
+  parseInteger,
+  replaceMenuItemOptionGroups,
+  serializeMenuItem,
+  validateOptionGroups,
+} from "@/lib/menu-options";
 import prisma from "@/lib/prisma";
-
-function normalizeText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function parseInteger(value) {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return Number.NaN;
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!/^-?\d+$/.test(trimmedValue)) {
-    return Number.NaN;
-  }
-
-  return Number.parseInt(trimmedValue, 10);
-}
 
 function normalizeMenuItemInput(payload) {
   const rawSortOrder =
@@ -50,6 +37,7 @@ function normalizeMenuItemInput(payload) {
     isAvailable:
       typeof payload.isAvailable === "boolean" ? payload.isAvailable : true,
     sortOrder: rawSortOrder,
+    optionGroups: normalizeOptionGroups(payload.optionGroups),
   };
 }
 
@@ -81,11 +69,17 @@ function validateMenuItemInput(normalizedItem) {
     return "sortOrder must be null or a whole number greater than or equal to 0";
   }
 
+  const optionGroupsError = validateOptionGroups(normalizedItem.optionGroups);
+
+  if (optionGroupsError) {
+    return optionGroupsError;
+  }
+
   return null;
 }
 
 export async function PATCH(request, { params }) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.MENU_WRITE);
 
   if (session instanceof NextResponse) {
     return session;
@@ -102,12 +96,11 @@ export async function PATCH(request, { params }) {
   const { id } = await params;
   const normalizedItem = normalizeMenuItemInput(payload);
 
-  if (!normalizedItem.restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (normalizedItem.restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+  if (
+    normalizedItem.restaurantSlug &&
+    normalizedItem.restaurantSlug !== session.restaurant.slug
+  ) {
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   const validationError = validateMenuItemInput(normalizedItem);
@@ -117,14 +110,7 @@ export async function PATCH(request, { params }) {
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: normalizedItem.restaurantSlug },
-      select: { id: true, slug: true, name: true },
-    });
-
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
+    const restaurant = session.restaurant;
 
     const existingItem = await prisma.menuItem.findFirst({
       where: {
@@ -138,32 +124,35 @@ export async function PATCH(request, { params }) {
       return notFound("Menu item not found");
     }
 
-    const updatedItem = await prisma.menuItem.update({
-      where: { id },
-      data: {
-        name: normalizedItem.name,
-        description: normalizedItem.description,
-        category: normalizedItem.category,
-        price: normalizedItem.price,
-        isAvailable: normalizedItem.isAvailable,
-        sortOrder: normalizedItem.sortOrder,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        category: true,
-        isAvailable: true,
-        sortOrder: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const updatedItem = await prisma.$transaction(async (tx) => {
+      await tx.menuItem.update({
+        where: { id },
+        data: {
+          name: normalizedItem.name,
+          description: normalizedItem.description,
+          category: normalizedItem.category,
+          price: normalizedItem.price,
+          isAvailable: normalizedItem.isAvailable,
+          sortOrder: normalizedItem.sortOrder,
+        },
+      });
+
+      await replaceMenuItemOptionGroups(
+        tx,
+        restaurant.id,
+        id,
+        normalizedItem.optionGroups
+      );
+
+      return tx.menuItem.findUnique({
+        where: { id },
+        select: MENU_ITEM_WITH_OPTIONS_SELECT,
+      });
     });
 
     return apiSuccess({
       restaurant,
-      item: updatedItem,
+      item: serializeMenuItem(updatedItem),
     });
   } catch (error) {
     logApiError("PATCH /api/menu/[id] failed", error);
@@ -172,7 +161,7 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.MENU_WRITE);
 
   if (session instanceof NextResponse) {
     return session;
@@ -182,23 +171,12 @@ export async function DELETE(request, { params }) {
   const restaurantSlug = searchParams.get("restaurantSlug");
   const { id } = await params;
 
-  if (!restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+  if (restaurantSlug && restaurantSlug !== session.restaurant.slug) {
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: restaurantSlug },
-      select: { id: true, slug: true, name: true },
-    });
-
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
+    const restaurant = session.restaurant;
 
     const existingItem = await prisma.menuItem.findFirst({
       where: {

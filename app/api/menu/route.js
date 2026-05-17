@@ -3,35 +3,21 @@ import { NextResponse } from "next/server";
 import {
   apiSuccess,
   badRequest,
-  forbidden,
   logApiError,
-  notFound,
   serverError,
 } from "@/lib/api";
-import { requireStaffSessionResponse } from "@/lib/auth";
+import { requirePermissionResponse } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
+import {
+  MENU_ITEM_WITH_OPTIONS_SELECT,
+  normalizeOptionGroups,
+  normalizeText,
+  parseInteger,
+  replaceMenuItemOptionGroups,
+  serializeMenuItem,
+  validateOptionGroups,
+} from "@/lib/menu-options";
 import prisma from "@/lib/prisma";
-
-function normalizeText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function parseInteger(value) {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value !== "string") {
-    return Number.NaN;
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!/^-?\d+$/.test(trimmedValue)) {
-    return Number.NaN;
-  }
-
-  return Number.parseInt(trimmedValue, 10);
-}
 
 function normalizeMenuItemInput(payload) {
   const rawSortOrder =
@@ -49,6 +35,7 @@ function normalizeMenuItemInput(payload) {
     isAvailable:
       typeof payload.isAvailable === "boolean" ? payload.isAvailable : true,
     sortOrder: rawSortOrder,
+    optionGroups: normalizeOptionGroups(payload.optionGroups),
   };
 }
 
@@ -80,11 +67,17 @@ function validateMenuItemInput(normalizedItem) {
     return "sortOrder must be null or a whole number greater than or equal to 0";
   }
 
+  const optionGroupsError = validateOptionGroups(normalizedItem.optionGroups);
+
+  if (optionGroupsError) {
+    return optionGroupsError;
+  }
+
   return null;
 }
 
 export async function GET(request) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.MENU_READ);
 
   if (session instanceof NextResponse) {
     return session;
@@ -94,23 +87,12 @@ export async function GET(request) {
   const restaurantSlug = searchParams.get("restaurantSlug");
   const availableOnly = searchParams.get("availableOnly") === "true";
 
-  if (!restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+  if (restaurantSlug && restaurantSlug !== session.restaurant.slug) {
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: restaurantSlug },
-      select: { id: true, slug: true, name: true },
-    });
-
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
+    const restaurant = session.restaurant;
 
     const menuItems = await prisma.menuItem.findMany({
       where: {
@@ -123,21 +105,13 @@ export async function GET(request) {
         { name: "asc" },
       ],
       select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        category: true,
-        isAvailable: true,
-        sortOrder: true,
-        createdAt: true,
-        updatedAt: true,
+        ...MENU_ITEM_WITH_OPTIONS_SELECT,
       },
     });
 
     return apiSuccess({
       restaurant,
-      items: menuItems,
+      items: menuItems.map(serializeMenuItem),
     });
   } catch (error) {
     logApiError("GET /api/menu failed", error);
@@ -146,7 +120,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const session = await requireStaffSessionResponse();
+  const session = await requirePermissionResponse(PERMISSIONS.MENU_WRITE);
 
   if (session instanceof NextResponse) {
     return session;
@@ -160,14 +134,8 @@ export async function POST(request) {
     return badRequest("Invalid JSON body");
   }
 
-  const restaurantSlug = payload.restaurantSlug;
-
-  if (!restaurantSlug) {
-    return badRequest("restaurantSlug is required");
-  }
-
-  if (restaurantSlug !== session.restaurant.slug) {
-    return forbidden();
+  if (payload.restaurantSlug && normalizeText(payload.restaurantSlug) !== session.restaurant.slug) {
+    return badRequest("restaurantSlug does not match the current session restaurant");
   }
 
   const normalizedItem = normalizeMenuItemInput(payload);
@@ -178,48 +146,54 @@ export async function POST(request) {
   }
 
   try {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: restaurantSlug },
-      select: { id: true, slug: true, name: true },
-    });
+    const restaurant = session.restaurant;
 
-    if (!restaurant) {
-      return notFound("Restaurant not found");
-    }
+    const createdItem = await prisma.$transaction(async (tx) => {
+      const createdMenuItem = await tx.menuItem.create({
+        data: {
+          id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          restaurantId: restaurant.id,
+          name: normalizedItem.name,
+          description: normalizedItem.description,
+          category: normalizedItem.category,
+          price: normalizedItem.price,
+          isAvailable: normalizedItem.isAvailable,
+          sortOrder: normalizedItem.sortOrder,
+        },
+      });
 
-    const createdItem = await prisma.menuItem.create({
-      data: {
-        id: payload.id || `item-${Date.now()}`,
-        restaurantId: restaurant.id,
-        name: normalizedItem.name,
-        description: normalizedItem.description,
-        category: normalizedItem.category,
-        price: normalizedItem.price,
-        isAvailable: normalizedItem.isAvailable,
-        sortOrder: normalizedItem.sortOrder,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        category: true,
-        isAvailable: true,
-        sortOrder: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      await replaceMenuItemOptionGroups(
+        tx,
+        restaurant.id,
+        createdMenuItem.id,
+        normalizedItem.optionGroups
+      );
+
+      return tx.menuItem.findUnique({
+        where: { id: createdMenuItem.id },
+        select: MENU_ITEM_WITH_OPTIONS_SELECT,
+      });
     });
 
     return apiSuccess(
       {
         restaurant,
-        item: createdItem,
+        item: serializeMenuItem(createdItem),
       },
       201
     );
   } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("POST /api/menu payload", payload);
+      console.error("POST /api/menu normalizedItem", normalizedItem);
+      console.error("POST /api/menu error detail", error);
+    }
+
     logApiError("POST /api/menu failed", error);
-    return serverError("Failed to create menu item");
+    return serverError(
+      process.env.NODE_ENV !== "production" && error instanceof Error
+        ? `Failed to create menu item: ${error.message}`
+        : "Failed to create menu item"
+    );
   }
 }

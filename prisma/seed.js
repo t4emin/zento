@@ -93,6 +93,7 @@ async function main() {
       restaurantId: restaurant.id,
       currency: "THB",
       timezone: "Asia/Bangkok",
+      mode: "normal",
     },
   });
 

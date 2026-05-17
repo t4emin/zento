@@ -1,4 +1,8 @@
 import { apiSuccess, badRequest, logApiError, notFound, serverError } from "@/lib/api";
+import {
+  PUBLIC_MENU_ITEM_WITH_OPTIONS_SELECT,
+  serializePublicMenuItem,
+} from "@/lib/menu-options";
 import prisma from "@/lib/prisma";
 
 export async function GET(_request, { params }) {
@@ -47,21 +51,13 @@ export async function GET(_request, { params }) {
         { sortOrder: "asc" },
         { name: "asc" },
       ],
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        category: true,
-        isAvailable: true,
-        sortOrder: true,
-      },
+      select: PUBLIC_MENU_ITEM_WITH_OPTIONS_SELECT,
     });
 
     return apiSuccess({
       restaurant,
       table,
-      items: menuItems,
+      items: menuItems.map(serializePublicMenuItem).filter(Boolean),
     });
   } catch (error) {
     logApiError("GET /api/public/restaurants/[slug]/tables/[code]/menu failed", error);
